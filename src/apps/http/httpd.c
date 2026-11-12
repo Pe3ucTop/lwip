@@ -2136,6 +2136,7 @@ http_parse_request(struct pbuf *inp, struct http_state *hs, struct altcp_pcb *pc
             obj = httpd_headers_before_file_open(crlf + 2, (uint16_t)(data_len - (crlf + 2 - data)),
                                                 uri, replace_uri,
                                                 LWIP_HTTPD_HEADERS_URI_REPLACE_LEN);
+            LWIP_UNUSED_ARG(obj); /* only used with LWIP_HTTPD_HEADERS_AFTER_FILE_OPEN */
             if (replace_uri[0] != 0) {
               uri = replace_uri;
             }
