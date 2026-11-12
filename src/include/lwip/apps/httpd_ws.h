@@ -61,7 +61,8 @@ extern "C" {
  * are served by httpd as before.
  *
  * Features: frame reassembly across TCP segments and pbuf chains,
- * fragmented messages (continuation frames) on receive, automatic PONG,
+ * fragmented messages (continuation frames) on receive, fragmented
+ * messages on transmit (httpd_ws_write_fragment()), automatic PONG,
  * optional server keep-alive PING, close handshake with timeout, per-URI
  * authentication callback or HTTP Basic authentication, flat-buffer or
  * pbuf-chain receive callbacks.
@@ -168,6 +169,10 @@ typedef void (*httpd_ws_close_fn)(struct altcp_pcb *pcb, void *user_ctx,
 typedef void (*httpd_ws_ctrl_fn)(struct altcp_pcb *pcb, void *user_ctx,
                                  const u8_t *payload, u16_t len);
 
+/** Data sent by this connection has been acknowledged by the peer; the
+ * application may queue more (see httpd_ws_write_fragment()). */
+typedef void (*httpd_ws_sent_fn)(struct altcp_pcb *pcb, void *user_ctx, u16_t len);
+
 /** Handler for one URI. The array passed to httpd_ws_register_handlers()
  * must stay valid while the server runs.
  * For each connection exactly one receive callback is used: msg_pbuf_cb if
@@ -185,14 +190,17 @@ typedef struct {
   /** NULL: use the credentials of httpd_ws_set_basic_auth() (if any) */
   httpd_ws_auth_fn auth_cb;
   void *user_ctx;
+  httpd_ws_sent_fn sent_cb;
 } httpd_ws_handler_t;
 
 void  httpd_ws_register_handlers(const httpd_ws_handler_t *handlers, size_t count);
 void  httpd_ws_set_basic_auth(const char *username, const char *password);
 
-err_t httpd_ws_write(struct altcp_pcb *pcb, const u8_t *data, u16_t len, u8_t opcode);
-err_t httpd_ws_broadcast(const u8_t *data, u16_t len, u8_t opcode);
-err_t httpd_ws_broadcast_uri(const char *uri, const u8_t *data, u16_t len, u8_t opcode);
+err_t httpd_ws_write(struct altcp_pcb *pcb, const u8_t *data, u32_t len, u8_t opcode);
+err_t httpd_ws_write_fragment(struct altcp_pcb *pcb, const u8_t *data, u32_t len,
+                              u8_t opcode, u8_t fin);
+err_t httpd_ws_broadcast(const u8_t *data, u32_t len, u8_t opcode);
+err_t httpd_ws_broadcast_uri(const char *uri, const u8_t *data, u32_t len, u8_t opcode);
 err_t httpd_ws_ping(struct altcp_pcb *pcb, const u8_t *payload, u16_t len);
 err_t httpd_ws_close(struct altcp_pcb *pcb, u16_t code, const u8_t *reason, u16_t reason_len);
 

@@ -2542,6 +2542,13 @@ http_sent(void *arg, struct altcp_pcb *pcb, u16_t len)
 
   hs->retries = 0;
 
+#if LWIP_HTTPD_SUPPORT_WEBSOCKET
+  if (hs->ws != NULL) {
+    httpd_ws_sent(hs->ws, len);
+    return ERR_OK;
+  }
+#endif /* LWIP_HTTPD_SUPPORT_WEBSOCKET */
+
   http_send(pcb, hs);
 
   return ERR_OK;

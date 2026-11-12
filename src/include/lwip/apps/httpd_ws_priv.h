@@ -84,6 +84,8 @@ err_t httpd_ws_recv(struct httpd_ws_conn *conn, struct pbuf *p);
 /** Poll timer of an upgraded connection (replaces the httpd retry count).
  * @return ERR_OK to keep the connection, anything else to close it */
 err_t httpd_ws_poll(struct httpd_ws_conn *conn);
+/** Sent data was acknowledged on an upgraded connection */
+void  httpd_ws_sent(struct httpd_ws_conn *conn, u16_t len);
 /** The connection is closed, reset or aborted: report and free the state */
 void  httpd_ws_free(struct httpd_ws_conn *conn);
 

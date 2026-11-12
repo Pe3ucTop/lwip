@@ -140,6 +140,7 @@ struct httpd_ws_conn {
   u8_t closing;              /* Close frame sent by the server */
   u8_t close_rcvd;           /* Close frame received from the peer */
   u8_t close_polls;
+  u8_t tx_frag_open;         /* fragmented message being sent */
   u8_t tx_broken;            /* partial frame queued, stream unusable */
 #if LWIP_HTTPD_WS_SERVER_PING_ENABLE
   u8_t idle_polls;
@@ -190,9 +191,9 @@ ws_find(const struct altcp_pcb *pcb)
 /** Queue one frame. Either the whole frame is queued or nothing (ERR_MEM:
  * not enough send buffer, try again later). */
 static err_t
-ws_send_frame(struct httpd_ws_conn *ws, u8_t b0, const u8_t *data, u16_t len)
+ws_send_frame(struct httpd_ws_conn *ws, u8_t b0, const u8_t *data, u32_t len)
 {
-  u8_t hdr[4];
+  u8_t hdr[10];
   u16_t hdr_len;
   u16_t sndbuf;
   u16_t mss;
@@ -205,17 +206,28 @@ ws_send_frame(struct httpd_ws_conn *ws, u8_t b0, const u8_t *data, u16_t len)
   if (len < 126) {
     hdr[1] = (u8_t)len;
     hdr_len = 2;
-  } else {
+  } else if (len <= 0xFFFF) {
     hdr[1] = 126;
     hdr[2] = (u8_t)(len >> 8);
     hdr[3] = (u8_t)len;
     hdr_len = 4;
+  } else {
+    hdr[1] = 127;
+    hdr[2] = 0;
+    hdr[3] = 0;
+    hdr[4] = 0;
+    hdr[5] = 0;
+    hdr[6] = (u8_t)(len >> 24);
+    hdr[7] = (u8_t)(len >> 16);
+    hdr[8] = (u8_t)(len >> 8);
+    hdr[9] = (u8_t)len;
+    hdr_len = 10;
   }
 
   /* All-or-nothing: a frame header without its payload would corrupt the
      stream, so check the send buffer and queue length first. */
   sndbuf = altcp_sndbuf(ws->pcb);
-  if ((sndbuf < hdr_len) || (len > (u16_t)(sndbuf - hdr_len))) {
+  if ((sndbuf < hdr_len) || (len > (u32_t)(sndbuf - hdr_len))) {
     return ERR_MEM;
   }
   mss = altcp_mss(ws->pcb);
@@ -232,7 +244,7 @@ ws_send_frame(struct httpd_ws_conn *ws, u8_t b0, const u8_t *data, u16_t len)
     return err; /* nothing queued */
   }
   if (len > 0) {
-    err = altcp_write(ws->pcb, data, len, TCP_WRITE_FLAG_COPY);
+    err = altcp_write(ws->pcb, data, (u16_t)len, TCP_WRITE_FLAG_COPY);
     if (err != ERR_OK) {
       /* header queued without payload: the connection cannot be used any
          more, it is closed on the next poll */
@@ -257,7 +269,7 @@ ws_send_close(struct httpd_ws_conn *ws, u16_t code, const u8_t *reason, u16_t re
   if (reason_len > 0) {
     MEMCPY(&payload[2], reason, reason_len);
   }
-  err = ws_send_frame(ws, WS_FIN | WS_OPCODE_CLOSE, payload, (u16_t)(2 + reason_len));
+  err = ws_send_frame(ws, WS_FIN | WS_OPCODE_CLOSE, payload, (u32_t)(2 + reason_len));
   if (err == ERR_OK) {
     ws->closing = 1;
     ws->close_polls = 0;
@@ -994,6 +1006,15 @@ httpd_ws_poll(struct httpd_ws_conn *ws)
 }
 
 void
+httpd_ws_sent(struct httpd_ws_conn *ws, u16_t len)
+{
+  LWIP_ASSERT("ws != NULL", ws != NULL);
+  if (!ws->closing && !ws->tx_broken && (ws->handler->sent_cb != NULL)) {
+    ws->handler->sent_cb(ws->pcb, ws->handler->user_ctx, len);
+  }
+}
+
+void
 httpd_ws_free(struct httpd_ws_conn *ws)
 {
   const httpd_ws_handler_t *h;
@@ -1062,18 +1083,20 @@ httpd_ws_set_basic_auth(const char *username, const char *password)
  * Send a complete message as one frame. The data is copied.
  *
  * The frame is queued completely or not at all, so a message must fit into
- * the TCP send buffer (altcp_sndbuf()).
+ * the TCP send buffer (altcp_sndbuf()); send larger messages in pieces with
+ * httpd_ws_write_fragment().
  *
  * @param pcb connection
  * @param data payload
  * @param len payload length
  * @param opcode WS_OPCODE_TEXT or WS_OPCODE_BIN
  * @return ERR_OK; ERR_MEM: not enough send buffer, nothing queued, try again
- *         later; ERR_CONN: not an open WebSocket; ERR_CLSD: connection is
- *         closing; ERR_ARG: invalid argument
+ *         later (e.g. from sent_cb); ERR_CONN: not an open WebSocket;
+ *         ERR_CLSD: connection is closing; ERR_INPROGRESS: a fragmented
+ *         message is being sent; ERR_ARG: invalid argument
  */
 err_t
-httpd_ws_write(struct altcp_pcb *pcb, const u8_t *data, u16_t len, u8_t opcode)
+httpd_ws_write(struct altcp_pcb *pcb, const u8_t *data, u32_t len, u8_t opcode)
 {
   struct httpd_ws_conn *ws;
 
@@ -1089,11 +1112,61 @@ httpd_ws_write(struct altcp_pcb *pcb, const u8_t *data, u16_t len, u8_t opcode)
   if (ws->closing) {
     return ERR_CLSD;
   }
+  if (ws->tx_frag_open) {
+    return ERR_INPROGRESS;
+  }
   return ws_send_frame(ws, (u8_t)(WS_FIN | opcode), data, len);
 }
 
+/**
+ * @ingroup httpd_ws
+ * Send one fragment of a message (RFC 6455 5.4). The first fragment uses
+ * WS_OPCODE_TEXT or WS_OPCODE_BIN, all following ones WS_OPCODE_CONT; the
+ * last one has fin = 1. PING/CLOSE may be sent between fragments, other
+ * messages may not (httpd_ws_write() returns ERR_INPROGRESS meanwhile).
+ * Each fragment is queued completely or not at all (see httpd_ws_write()).
+ *
+ * @param pcb connection
+ * @param data payload of this fragment (copied)
+ * @param len length of this fragment
+ * @param opcode WS_OPCODE_TEXT/WS_OPCODE_BIN (first) or WS_OPCODE_CONT
+ * @param fin 1 for the last fragment
+ * @return see httpd_ws_write(); ERR_VAL: wrong opcode for the current state
+ */
+err_t
+httpd_ws_write_fragment(struct altcp_pcb *pcb, const u8_t *data, u32_t len,
+                        u8_t opcode, u8_t fin)
+{
+  struct httpd_ws_conn *ws;
+  err_t err;
+
+  LWIP_ASSERT_CORE_LOCKED();
+  if ((pcb == NULL) || ((data == NULL) && (len > 0))) {
+    return ERR_ARG;
+  }
+  ws = ws_find(pcb);
+  if (ws == NULL) {
+    return ERR_CONN;
+  }
+  if (ws->closing) {
+    return ERR_CLSD;
+  }
+  if (ws->tx_frag_open) {
+    if (opcode != WS_OPCODE_CONT) {
+      return ERR_VAL;
+    }
+  } else if ((opcode != WS_OPCODE_TEXT) && (opcode != WS_OPCODE_BIN)) {
+    return ERR_VAL;
+  }
+  err = ws_send_frame(ws, (u8_t)((fin ? WS_FIN : 0) | opcode), data, len);
+  if (err == ERR_OK) {
+    ws->tx_frag_open = (u8_t)(fin ? 0 : 1);
+  }
+  return err;
+}
+
 static err_t
-ws_broadcast(const httpd_ws_handler_t *target, const u8_t *data, u16_t len, u8_t opcode)
+ws_broadcast(const httpd_ws_handler_t *target, const u8_t *data, u32_t len, u8_t opcode)
 {
   struct httpd_ws_conn *ws;
   err_t ret = ERR_OK;
@@ -1103,7 +1176,7 @@ ws_broadcast(const httpd_ws_handler_t *target, const u8_t *data, u16_t len, u8_t
     return ERR_ARG;
   }
   for (ws = ws_conns; ws != NULL; ws = ws->next) {
-    if (((target == NULL) || (ws->handler == target)) && !ws->closing) {
+    if (((target == NULL) || (ws->handler == target)) && !ws->closing && !ws->tx_frag_open) {
       err_t err = ws_send_frame(ws, (u8_t)(WS_FIN | opcode), data, len);
       if ((err != ERR_OK) && (ret == ERR_OK)) {
         ret = err; /* keep going, report the first failure */
@@ -1121,7 +1194,7 @@ ws_broadcast(const httpd_ws_handler_t *target, const u8_t *data, u16_t len, u8_t
  *         (typically ERR_MEM: at least one peer did not get the message)
  */
 err_t
-httpd_ws_broadcast(const u8_t *data, u16_t len, u8_t opcode)
+httpd_ws_broadcast(const u8_t *data, u32_t len, u8_t opcode)
 {
   LWIP_ASSERT_CORE_LOCKED();
   return ws_broadcast(NULL, data, len, opcode);
@@ -1133,7 +1206,7 @@ httpd_ws_broadcast(const u8_t *data, u16_t len, u8_t opcode)
  * @return see httpd_ws_broadcast(); ERR_ARG if no handler matches uri
  */
 err_t
-httpd_ws_broadcast_uri(const char *uri, const u8_t *data, u16_t len, u8_t opcode)
+httpd_ws_broadcast_uri(const char *uri, const u8_t *data, u32_t len, u8_t opcode)
 {
   const httpd_ws_handler_t *h;
 
