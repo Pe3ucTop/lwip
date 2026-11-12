@@ -63,6 +63,8 @@ struct fsdata_chksum {
 typedef void fs_file_extension;
 #endif
 
+struct fs_custom_provider;
+
 struct fs_file {
   const char *data;
   int len;
@@ -80,6 +82,10 @@ struct fs_file {
 #if LWIP_HTTPD_FILE_STATE
   void *state;
 #endif /* LWIP_HTTPD_FILE_STATE */
+#if LWIP_HTTPD_CUSTOM_FILES && LWIP_HTTPD_CUSTOM_FILE_PROVIDERS
+  /** provider that opened this file (FS_FILE_FLAGS_CUSTOM set), internal */
+  const struct fs_custom_provider *provider;
+#endif /* LWIP_HTTPD_CUSTOM_FILES && LWIP_HTTPD_CUSTOM_FILE_PROVIDERS */
 };
 
 #if LWIP_HTTPD_FS_ASYNC_READ
@@ -135,6 +141,41 @@ int fs_read_async_custom(struct fs_file *file, char *buffer, int count, fs_wait_
 #else /* LWIP_HTTPD_FS_ASYNC_READ */
 int fs_read_custom(struct fs_file *file, char *buffer, int count);
 #endif /* LWIP_HTTPD_FS_ASYNC_READ */
+
+#if LWIP_HTTPD_CUSTOM_FILE_PROVIDERS
+/** fs_custom_provider_register(): ask the provider before the files in fsdata */
+#define FS_CUSTOM_PROVIDER_BEFORE_FSDATA  0
+/** fs_custom_provider_register(): ask the provider only if fsdata has no such file */
+#define FS_CUSTOM_PROVIDER_AFTER_FSDATA   1
+
+/**
+ * @ingroup httpd
+ * A source of custom files (LWIP_HTTPD_CUSTOM_FILE_PROVIDERS).
+ * The functions have the same contract as the fs_*_custom() functions above.
+ * open() returns 1 if it opened the file and must initialize data, len,
+ * index and flags of @p file (data may be NULL if read() delivers the
+ * content). close() and the read functions are only called for files that
+ * this provider opened; close() may be NULL.
+ * The structure is linked into a list and must stay valid while registered.
+ */
+struct fs_custom_provider {
+  int (*open)(struct fs_file *file, const char *name);
+  void (*close)(struct fs_file *file);
+#if LWIP_HTTPD_FS_ASYNC_READ
+  u8_t (*canread)(struct fs_file *file);
+  u8_t (*wait_read)(struct fs_file *file, fs_wait_cb callback_fn, void *callback_arg);
+  int (*read_async)(struct fs_file *file, char *buffer, int count, fs_wait_cb callback_fn, void *callback_arg);
+#else /* LWIP_HTTPD_FS_ASYNC_READ */
+  int (*read)(struct fs_file *file, char *buffer, int count);
+#endif /* LWIP_HTTPD_FS_ASYNC_READ */
+  /** internal, do not touch */
+  struct fs_custom_provider *next;
+  /** internal, do not touch */
+  u8_t where;
+};
+
+err_t fs_custom_provider_register(struct fs_custom_provider *provider, u8_t where);
+#endif /* LWIP_HTTPD_CUSTOM_FILE_PROVIDERS */
 #endif /* LWIP_HTTPD_CUSTOM_FILES */
 
 #ifdef __cplusplus

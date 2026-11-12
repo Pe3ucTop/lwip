@@ -391,6 +391,18 @@
 #define LWIP_HTTPD_CUSTOM_FILES       0
 #endif
 
+/** Set this to 1 (requires LWIP_HTTPD_CUSTOM_FILES) to let several modules
+ * provide custom files at the same time. fs.c then implements the
+ * fs_*_custom() functions itself and dispatches to a list of
+ * struct fs_custom_provider registered with fs_custom_provider_register().
+ * Providers can be asked before or after the files in fsdata, so a
+ * provider of fallback pages (e.g. error pages) does not hide files in
+ * fsdata. The application must not define fs_open_custom() etc. then.
+ */
+#if !defined LWIP_HTTPD_CUSTOM_FILE_PROVIDERS || defined __DOXYGEN__
+#define LWIP_HTTPD_CUSTOM_FILE_PROVIDERS  0
+#endif
+
 /** Set this to 1 to support fs_read() to dynamically read file data.
  * Without this (default=off), only one-block files are supported,
  * and the contents must be ready after fs_open().
