@@ -15,6 +15,7 @@ endif()
 set(lwipcontribexamples_SRCS
     ${LWIP_CONTRIB_DIR}/examples/httpd/fs_example/fs_example.c
     ${LWIP_CONTRIB_DIR}/examples/httpd/https_example/https_example.c
+    ${LWIP_CONTRIB_DIR}/examples/httpd/rest_example/rest_example.c
     ${LWIP_CONTRIB_DIR}/examples/httpd/ssi_example/ssi_example.c
     ${LWIP_CONTRIB_DIR}/examples/httpd/upload_example/upload_example.c
     ${LWIP_CONTRIB_DIR}/examples/lwiperf/lwiperf_example.c
