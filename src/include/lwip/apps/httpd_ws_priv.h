@@ -42,6 +42,9 @@
 #if LWIP_HTTPD_SUPPORT_WEBSOCKET && LWIP_TCP && LWIP_CALLBACK_API
 
 #include "lwip/arch.h"
+#include "lwip/err.h"
+#include "lwip/pbuf.h"
+#include "lwip/altcp.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,6 +57,35 @@ extern "C" {
 
 void  httpd_ws_sha1(const u8_t *input, u16_t len, u8_t *digest);
 u16_t httpd_ws_base64_encode(const u8_t *input, u16_t len, char *output);
+
+/** Per-connection WebSocket state, opaque to httpd.c */
+struct httpd_ws_conn;
+
+/* Hooks called by httpd.c (tcpip thread) */
+
+/** Initialize the module (memory pool); called from httpd_init(). */
+void  httpd_ws_init(void);
+/** Check a parsed GET request for a WebSocket upgrade.
+ * @param pcb connection
+ * @param uri request URI (NUL-terminated)
+ * @param headers first header line, up to and including the empty line
+ * @param headers_len length of headers
+ * @param conn set to the new connection state when the upgrade succeeded
+ * @return ERR_VAL: not an upgrade request, continue as usual;
+ *         ERR_OK: upgraded, *conn is set, httpd must not send anything;
+ *         ERR_ARG: an error response was queued, close the connection
+ */
+err_t httpd_ws_handshake(struct altcp_pcb *pcb, const char *uri,
+                         const char *headers, u16_t headers_len,
+                         struct httpd_ws_conn **conn);
+/** Data received on an upgraded connection. Takes ownership of p.
+ * @return ERR_OK to keep the connection, anything else to close it */
+err_t httpd_ws_recv(struct httpd_ws_conn *conn, struct pbuf *p);
+/** Poll timer of an upgraded connection (replaces the httpd retry count).
+ * @return ERR_OK to keep the connection, anything else to close it */
+err_t httpd_ws_poll(struct httpd_ws_conn *conn);
+/** The connection is closed, reset or aborted: report and free the state */
+void  httpd_ws_free(struct httpd_ws_conn *conn);
 
 #ifdef __cplusplus
 }

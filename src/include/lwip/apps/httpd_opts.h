@@ -307,6 +307,59 @@
 #define LWIP_HTTPD_WS_SHA1(input, len, digest) httpd_ws_sha1(input, len, digest)
 #endif
 
+/** Maximum number of simultaneous WebSocket connections (memory pool size).
+ * Each upgraded connection also keeps its httpd connection state. */
+#if !defined MEMP_NUM_PARALLEL_HTTPD_WEBSOCKET_CONNS || defined __DOXYGEN__
+#define MEMP_NUM_PARALLEL_HTTPD_WEBSOCKET_CONNS 4
+#endif
+
+/** Size of the per-connection reassembly buffer (allocated with mem_malloc()
+ * on upgrade) for handlers using the flat msg_cb. Messages larger than this
+ * are rejected with close code 1009. Not allocated for msg_pbuf_cb handlers.
+ */
+#if !defined LWIP_HTTPD_WS_RX_BUF_SIZE || defined __DOXYGEN__
+#define LWIP_HTTPD_WS_RX_BUF_SIZE           4096
+#endif
+
+/** Maximum size of a received message, for both receive modes; larger
+ * messages are rejected with close code 1009.
+ * Must not exceed 65535 (a message is delivered as one pbuf chain).
+ */
+#if !defined LWIP_HTTPD_WS_MAX_MSG_SIZE || defined __DOXYGEN__
+#define LWIP_HTTPD_WS_MAX_MSG_SIZE          LWIP_HTTPD_WS_RX_BUF_SIZE
+#endif
+
+/** Set this to 1 to let the server send a PING on idle connections and close
+ * connections that do not answer. With 0, an idle WebSocket connection is
+ * kept open until the peer or TCP closes it.
+ */
+#if !defined LWIP_HTTPD_WS_SERVER_PING_ENABLE || defined __DOXYGEN__
+#define LWIP_HTTPD_WS_SERVER_PING_ENABLE    1
+#endif
+
+/** Number of httpd polls (HTTPD_POLL_INTERVAL) without received data after
+ * which a PING is sent (default 15 polls = 30 s with the default interval). */
+#if !defined LWIP_HTTPD_WS_PING_INTERVAL_POLLS || defined __DOXYGEN__
+#define LWIP_HTTPD_WS_PING_INTERVAL_POLLS   15
+#endif
+
+/** Number of further polls to wait for any data (normally the PONG) after a
+ * PING before the connection is closed. */
+#if !defined LWIP_HTTPD_WS_PONG_TIMEOUT_POLLS || defined __DOXYGEN__
+#define LWIP_HTTPD_WS_PONG_TIMEOUT_POLLS    5
+#endif
+
+/** Number of polls to wait for the peer's Close frame after the server sent
+ * one (httpd_ws_close()) before the TCP connection is closed anyway. */
+#if !defined LWIP_HTTPD_WS_CLOSE_TIMEOUT_POLLS || defined __DOXYGEN__
+#define LWIP_HTTPD_WS_CLOSE_TIMEOUT_POLLS   2
+#endif
+
+/** Maximum length of "user:password" for httpd_ws_set_basic_auth(). */
+#if !defined LWIP_HTTPD_WS_BASIC_AUTH_MAX || defined __DOXYGEN__
+#define LWIP_HTTPD_WS_BASIC_AUTH_MAX        64
+#endif
+
 /** Set this to 1 to support HTTP request coming in in multiple packets/pbufs */
 #if !defined LWIP_HTTPD_SUPPORT_REQUESTLIST || defined __DOXYGEN__
 #define LWIP_HTTPD_SUPPORT_REQUESTLIST      1

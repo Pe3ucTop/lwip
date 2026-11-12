@@ -163,6 +163,7 @@ HTTPFILES=$(LWIPDIR)/apps/http/altcp_proxyconnect.c \
 	$(LWIPDIR)/apps/http/fs.c \
 	$(LWIPDIR)/apps/http/http_client.c \
 	$(LWIPDIR)/apps/http/httpd.c \
+	$(LWIPDIR)/apps/http/httpd_ws.c \
 	$(LWIPDIR)/apps/http/httpd_ws_base64.c \
 	$(LWIPDIR)/apps/http/httpd_ws_sha1.c
 
