@@ -61,12 +61,12 @@ extern "C" {
  * are served by httpd as before.
  *
  * Features: frame reassembly across TCP segments and pbuf chains,
- * automatic PONG,
+ * fragmented messages (continuation frames) on receive, automatic PONG,
  * optional server keep-alive PING, close handshake with timeout, per-URI
  * authentication callback or HTTP Basic authentication, flat-buffer or
  * pbuf-chain receive callbacks.
  *
- * Not supported: fragmented messages (continuation frames), extensions (e.g. permessage-deflate), subprotocol
+ * Not supported: extensions (e.g. permessage-deflate), subprotocol
  * negotiation (Sec-WebSocket-Protocol is ignored), client role.
  *
  * Thread context: all functions of this API must be called from the tcpip
@@ -130,7 +130,7 @@ typedef void (*httpd_ws_open_fn)(const httpd_ws_req_t *req);
 /** Complete message, flat buffer receive callback.
  * @param pcb connection
  * @param user_ctx user_ctx of the handler
- * @param data unmasked payload of the complete message;
+ * @param data unmasked payload of the complete (reassembled) message;
  *        only valid during the callback, may be modified in place
  * @param len payload length (at most LWIP_HTTPD_WS_RX_BUF_SIZE)
  * @param opcode WS_OPCODE_TEXT or WS_OPCODE_BIN

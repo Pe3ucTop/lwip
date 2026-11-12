@@ -321,12 +321,19 @@
 #define LWIP_HTTPD_WS_RX_BUF_SIZE           4096
 #endif
 
-/** Maximum size of a received message, for both receive modes; larger
- * messages are rejected with close code 1009.
+/** Maximum size of a received message (sum of all fragments), for both
+ * receive modes; larger messages are rejected with close code 1009.
  * Must not exceed 65535 (a message is delivered as one pbuf chain).
  */
 #if !defined LWIP_HTTPD_WS_MAX_MSG_SIZE || defined __DOXYGEN__
 #define LWIP_HTTPD_WS_MAX_MSG_SIZE          LWIP_HTTPD_WS_RX_BUF_SIZE
+#endif
+
+/** Set this to 1 to validate the UTF-8 encoding of received text messages
+ * and close reasons (close code 1007 on error), as required by RFC 6455 8.1.
+ */
+#if !defined LWIP_HTTPD_WS_UTF8_CHECK || defined __DOXYGEN__
+#define LWIP_HTTPD_WS_UTF8_CHECK            1
 #endif
 
 /** Set this to 1 to let the server send a PING on idle connections and close

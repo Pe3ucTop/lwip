@@ -131,6 +131,11 @@ struct httpd_ws_conn {
   u8_t close_reason_len;
   u16_t close_code;          /* received (close_rcvd) or sent (closing) */
 
+#if LWIP_HTTPD_WS_UTF8_CHECK
+  u8_t utf8_need;            /* continuation bytes still expected */
+  u8_t utf8_lo;              /* allowed range of the next byte */
+  u8_t utf8_hi;
+#endif /* LWIP_HTTPD_WS_UTF8_CHECK */
 
   u8_t closing;              /* Close frame sent by the server */
   u8_t close_rcvd;           /* Close frame received from the peer */
@@ -281,6 +286,70 @@ ws_fail(struct httpd_ws_conn *ws, u16_t code)
 /*---------------------------------------------------------------------------*/
 /* receive */
 
+#if LWIP_HTTPD_WS_UTF8_CHECK
+static void
+ws_utf8_reset(struct httpd_ws_conn *ws)
+{
+  ws->utf8_need = 0;
+  ws->utf8_lo = 0x80;
+  ws->utf8_hi = 0xBF;
+}
+
+/** Incremental UTF-8 validation (rejects overlong forms, surrogates and
+ * code points above U+10FFFF). @return 1 if valid so far, 0 on error */
+static u8_t
+ws_utf8_feed(struct httpd_ws_conn *ws, const u8_t *s, u16_t len)
+{
+  u16_t i;
+  for (i = 0; i < len; i++) {
+    u8_t c = s[i];
+    if (ws->utf8_need == 0) {
+      ws->utf8_lo = 0x80;
+      ws->utf8_hi = 0xBF;
+      if (c < 0x80) {
+        continue;
+      } else if ((c >= 0xC2) && (c <= 0xDF)) {
+        ws->utf8_need = 1;
+      } else if ((c >= 0xE0) && (c <= 0xEF)) {
+        ws->utf8_need = 2;
+        if (c == 0xE0) {
+          ws->utf8_lo = 0xA0;
+        } else if (c == 0xED) {
+          ws->utf8_hi = 0x9F;
+        }
+      } else if ((c >= 0xF0) && (c <= 0xF4)) {
+        ws->utf8_need = 3;
+        if (c == 0xF0) {
+          ws->utf8_lo = 0x90;
+        } else if (c == 0xF4) {
+          ws->utf8_hi = 0x8F;
+        }
+      } else {
+        return 0;
+      }
+    } else {
+      if ((c < ws->utf8_lo) || (c > ws->utf8_hi)) {
+        return 0;
+      }
+      ws->utf8_need--;
+      ws->utf8_lo = 0x80;
+      ws->utf8_hi = 0xBF;
+    }
+  }
+  return 1;
+}
+
+static u8_t
+ws_utf8_feed_pbuf(struct httpd_ws_conn *ws, const struct pbuf *p)
+{
+  for (; p != NULL; p = p->next) {
+    if (!ws_utf8_feed(ws, (const u8_t *)p->payload, p->len)) {
+      return 0;
+    }
+  }
+  return 1;
+}
+#endif /* LWIP_HTTPD_WS_UTF8_CHECK */
 
 static void
 ws_unmask(const struct httpd_ws_conn *ws, u8_t *data, u16_t len, u32_t pos)
@@ -310,6 +379,9 @@ ws_msg_reset(struct httpd_ws_conn *ws)
     pbuf_free(ws->rx_msg);
     ws->rx_msg = NULL;
   }
+#if LWIP_HTTPD_WS_UTF8_CHECK
+  ws_utf8_reset(ws);
+#endif /* LWIP_HTTPD_WS_UTF8_CHECK */
 }
 
 /** Parse the frame header collected in ws->hdr.
@@ -341,13 +413,18 @@ ws_parse_header(struct httpd_ws_conn *ws)
     if (!fin || (len7 > WS_CTRL_MAX_PAYLOAD)) {
       return ws_fail(ws, WS_CLOSE_PROTOCOL_ERROR);
     }
+  } else if (opcode == WS_OPCODE_CONT) {
+    if (ws->msg_opcode == 0) {
+      /* continuation without a started message */
+      return ws_fail(ws, WS_CLOSE_PROTOCOL_ERROR);
+    }
   } else if ((opcode == WS_OPCODE_TEXT) || (opcode == WS_OPCODE_BIN)) {
-    if (!fin) {
-      /* fragmented messages (continuation frames) are not supported */
+    if (ws->msg_opcode != 0) {
+      /* new message while a fragmented one is still open */
       return ws_fail(ws, WS_CLOSE_PROTOCOL_ERROR);
     }
   } else {
-    /* reserved data opcode or continuation */
+    /* reserved data opcode */
     return ws_fail(ws, WS_CLOSE_PROTOCOL_ERROR);
   }
 
@@ -382,9 +459,11 @@ ws_parse_header(struct httpd_ws_conn *ws)
 
   if (!WS_IS_CONTROL(opcode)) {
     u16_t limit = (ws->rx_buf != NULL) ? LWIP_HTTPD_WS_RX_BUF_SIZE : LWIP_HTTPD_WS_MAX_MSG_SIZE;
-    ws_msg_reset(ws);
-    ws->msg_opcode = opcode;
-    if (len > limit) {
+    if (opcode != WS_OPCODE_CONT) {
+      ws_msg_reset(ws);
+      ws->msg_opcode = opcode;
+    }
+    if (len > (u32_t)(limit - ws->msg_len)) {
       return ws_fail(ws, WS_CLOSE_MESSAGE_TOO_BIG);
     }
   }
@@ -417,6 +496,12 @@ ws_consume_payload(struct httpd_ws_conn *ws, struct pbuf **pp, u16_t take)
     pbuf_copy_partial(p, dst, take, 0);
     ws_unmask(ws, dst, take, ws->frame_pos);
     *pp = pbuf_free_header(p, take);
+#if LWIP_HTTPD_WS_UTF8_CHECK
+    if ((ws->msg_opcode == WS_OPCODE_TEXT) && !ws_utf8_feed(ws, dst, take)) {
+      ws->frame_pos += take;
+      return ws_fail(ws, WS_CLOSE_INVALID_PAYLOAD);
+    }
+#endif /* LWIP_HTTPD_WS_UTF8_CHECK */
   } else if (h->msg_pbuf_cb != NULL) {
     struct pbuf *chunk;
     struct pbuf *q;
@@ -437,6 +522,13 @@ ws_consume_payload(struct httpd_ws_conn *ws, struct pbuf **pp, u16_t take)
       ws_unmask(ws, (u8_t *)q->payload, q->len, pos);
       pos += q->len;
     }
+#if LWIP_HTTPD_WS_UTF8_CHECK
+    if ((ws->msg_opcode == WS_OPCODE_TEXT) && !ws_utf8_feed_pbuf(ws, chunk)) {
+      pbuf_free(chunk);
+      ws->frame_pos += take;
+      return ws_fail(ws, WS_CLOSE_INVALID_PAYLOAD);
+    }
+#endif /* LWIP_HTTPD_WS_UTF8_CHECK */
     if (ws->rx_msg == NULL) {
       ws->rx_msg = chunk;
     } else {
@@ -523,6 +615,12 @@ ws_handle_control(struct httpd_ws_conn *ws)
         if (!ws_close_code_valid(code)) {
           return ws_fail(ws, WS_CLOSE_PROTOCOL_ERROR);
         }
+#if LWIP_HTTPD_WS_UTF8_CHECK
+        ws_utf8_reset(ws);
+        if (!ws_utf8_feed(ws, &ws->ctrl[2], (u16_t)(len - 2)) || (ws->utf8_need != 0)) {
+          return ws_fail(ws, WS_CLOSE_INVALID_PAYLOAD);
+        }
+#endif /* LWIP_HTTPD_WS_UTF8_CHECK */
       }
       ws->close_rcvd = 1;
       ws->close_code = code;
@@ -545,7 +643,13 @@ ws_frame_complete(struct httpd_ws_conn *ws)
 
   if (WS_IS_CONTROL(ws->frame_opcode)) {
     err = ws_handle_control(ws);
-  } else {
+  } else if (ws->frame_fin) {
+#if LWIP_HTTPD_WS_UTF8_CHECK
+    if ((ws->msg_opcode == WS_OPCODE_TEXT) && (ws->utf8_need != 0) && !ws->closing &&
+        ((ws->rx_buf != NULL) || (ws->handler->msg_pbuf_cb != NULL))) {
+      return ws_fail(ws, WS_CLOSE_INVALID_PAYLOAD);
+    }
+#endif /* LWIP_HTTPD_WS_UTF8_CHECK */
     ws_deliver_message(ws);
     ws_msg_reset(ws);
   }
