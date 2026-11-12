@@ -56,4 +56,5 @@ CONTRIBAPPFILES=$(CONTRIBDIR)/apps/httpserver/httpserver-netconn.c \
 	$(CONTRIBDIR)/examples/tftp/tftp_example.c \
 	$(CONTRIBDIR)/addons/tcp_isn/tcp_isn.c \
 	$(CONTRIBDIR)/addons/ipv6_static_routing/ip6_route_table.c \
+	$(CONTRIBDIR)/addons/httpd_rest/http_rest.c \
 	$(CONTRIBDIR)/addons/httpd_rest/http_rest_query.c
