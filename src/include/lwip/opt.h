@@ -731,6 +731,21 @@
 #if !defined ETHARP_TABLE_MATCH_NETIF || defined __DOXYGEN__
 #define ETHARP_TABLE_MATCH_NETIF        !LWIP_SINGLE_NETIF
 #endif
+
+/** ETHARP_IGNORE_REQUESTS==1: do not send ARP replies to incoming ARP
+ * requests for our IPv4 address.
+ * Use this when the link (e.g. an Ethernet controller with built-in ARP
+ * handling) answers ARP requests itself, or when the device must not answer
+ * ARP at all.
+ * Only the reply is suppressed: the sender of an incoming request is still
+ * added to/updated in the ARP table, and outgoing ARP requests, gratuitous
+ * ARP and ACD (address conflict detection, used by AutoIP and
+ * LWIP_DHCP_DOES_ACD_CHECK) probes, announcements and defence work as before.
+ * IPv6 neighbor discovery is not affected.
+ */
+#if !defined ETHARP_IGNORE_REQUESTS || defined __DOXYGEN__
+#define ETHARP_IGNORE_REQUESTS          0
+#endif
 /**
  * @}
  */
