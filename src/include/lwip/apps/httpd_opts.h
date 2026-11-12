@@ -136,6 +136,44 @@
 #define LWIP_HTTPD_SUPPORT_POST   0
 #endif
 
+/** Set this to 1 (requires LWIP_HTTPD_SUPPORT_POST) to compile
+ * httpd_post_dispatch.c: it implements httpd_post_begin(),
+ * httpd_post_receive_data() and httpd_post_finished() and forwards each
+ * request to one of several handlers registered with
+ * httpd_post_sink_register(). The application must not define these
+ * functions itself then.
+ */
+#if !defined LWIP_HTTPD_POST_DISPATCH || defined __DOXYGEN__
+#define LWIP_HTTPD_POST_DISPATCH          0
+#endif
+
+/** Maximum number of POST sinks for LWIP_HTTPD_POST_DISPATCH */
+#if !defined HTTPD_POST_DISPATCH_MAX_SINKS || defined __DOXYGEN__
+#define HTTPD_POST_DISPATCH_MAX_SINKS     4
+#endif
+
+/** Maximum number of POST requests in progress at the same time for
+ * LWIP_HTTPD_POST_DISPATCH. Further requests get HTTPD_POST_DISPATCH_URI_BUSY.
+ */
+#if !defined HTTPD_POST_DISPATCH_MAX_CONNS || defined __DOXYGEN__
+#define HTTPD_POST_DISPATCH_MAX_CONNS     4
+#endif
+
+/** Response URI if no POST sink matches the request */
+#if !defined HTTPD_POST_DISPATCH_URI_NO_SINK || defined __DOXYGEN__
+#define HTTPD_POST_DISPATCH_URI_NO_SINK   "/404.html"
+#endif
+
+/** Response URI if HTTPD_POST_DISPATCH_MAX_CONNS requests are in progress */
+#if !defined HTTPD_POST_DISPATCH_URI_BUSY || defined __DOXYGEN__
+#define HTTPD_POST_DISPATCH_URI_BUSY      "/503.html"
+#endif
+
+/** Response URI if httpd_post_finished() is called for an unknown connection */
+#if !defined HTTPD_POST_DISPATCH_URI_ERROR || defined __DOXYGEN__
+#define HTTPD_POST_DISPATCH_URI_ERROR     "/500.html"
+#endif
+
 /* The maximum number of parameters that the CGI handler can be sent. */
 #if !defined LWIP_HTTPD_MAX_CGI_PARAMETERS || defined __DOXYGEN__
 #define LWIP_HTTPD_MAX_CGI_PARAMETERS 16
