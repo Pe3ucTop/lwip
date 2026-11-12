@@ -910,6 +910,20 @@
 #if !defined LWIP_MULTICAST_PING || defined __DOXYGEN__
 #define LWIP_MULTICAST_PING             0
 #endif
+
+/**
+ * LWIP_IGNORE_PING==1: do not respond to any ICMP echo request (unicast,
+ * broadcast or multicast) and remove the echo reply code. Use this when the
+ * link (e.g. an Ethernet controller with built-in ICMP handling) answers ping
+ * itself, or when the device must not answer ping at all.
+ * LWIP_BROADCAST_PING and LWIP_MULTICAST_PING have no effect when this is 1.
+ * Echo requests are still counted as received and dropped in the stats, and
+ * are still passed to raw PCBs and LWIP_HOOK_IP4_INPUT before ICMP sees them.
+ * This affects IPv4 only; ICMPv6 echo requests are still answered.
+ */
+#if !defined LWIP_IGNORE_PING || defined __DOXYGEN__
+#define LWIP_IGNORE_PING                0
+#endif
 /**
  * @}
  */

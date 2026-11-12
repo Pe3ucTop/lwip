@@ -327,6 +327,60 @@ START_TEST(test_ip4_icmp_replylen_first_8)
 }
 END_TEST
 
+/* An ICMP echo request to our address is answered unless LWIP_IGNORE_PING is set */
+START_TEST(test_ip4_icmp_echo)
+{
+  /* ICMP echo request 192.168.0.2 -> 192.168.0.1, id 0x1234, seq 1, 4 bytes data */
+  u8_t echo_req[] = {
+    0x45, 0x00, 0x00, 0x20, 0xd4, 0x31, 0x00, 0x00, 0xff, 0x01,
+    0x00, 0x00, 0xc0, 0xa8, 0x00, 0x02, 0xc0, 0xa8, 0x00, 0x01,
+    0x08, 0x00, 0x00, 0x00, 0x12, 0x34, 0x00, 0x01,
+    0xde, 0xad, 0xbe, 0xef };
+  struct pbuf *p;
+  u16_t chksum;
+  LWIP_UNUSED_ARG(_i);
+
+  /* fill in IP header and ICMP checksums */
+  chksum = inet_chksum(echo_req, IP_HLEN);
+  SMEMCPY(&echo_req[10], &chksum, sizeof(chksum));
+  chksum = inet_chksum(&echo_req[IP_HLEN], sizeof(echo_req) - IP_HLEN);
+  SMEMCPY(&echo_req[IP_HLEN + 2], &chksum, sizeof(chksum));
+
+  test_netif_add();
+  test_netif.output = arpless_output;
+  linkoutput_ctr = 0;
+  memset(&lwip_stats.icmp, 0, sizeof(lwip_stats.icmp));
+  memset(&lwip_stats.mib2, 0, sizeof(lwip_stats.mib2));
+
+  p = pbuf_alloc(PBUF_IP, sizeof(echo_req), PBUF_RAM);
+  fail_unless(p != NULL);
+  if (p == NULL) {
+    return;
+  }
+  pbuf_take(p, echo_req, sizeof(echo_req));
+  fail_unless(ip4_input(p, &test_netif) == ERR_OK);
+
+  fail_unless(lwip_stats.icmp.recv == 1);
+  fail_unless(lwip_stats.mib2.icmpinechos == 1);
+#if LWIP_IGNORE_PING
+  fail_unless(linkoutput_ctr == 0);
+  fail_unless(lwip_stats.icmp.drop == 1);
+  fail_unless(lwip_stats.icmp.xmit == 0);
+  fail_unless(lwip_stats.mib2.icmpoutechoreps == 0);
+#else /* LWIP_IGNORE_PING */
+  fail_unless(linkoutput_ctr == 1);
+  fail_unless(lwip_stats.icmp.drop == 0);
+  fail_unless(lwip_stats.icmp.xmit == 1);
+  fail_unless(lwip_stats.mib2.icmpoutechoreps == 1);
+  /* echo reply back to the sender */
+  fail_unless(linkoutput_pkt_len == sizeof(echo_req));
+  fail_unless(linkoutput_pkt[IP_HLEN] == ICMP_ER);
+  fail_if(memcmp(&linkoutput_pkt[12], &echo_req[16], 4));
+  fail_if(memcmp(&linkoutput_pkt[16], &echo_req[12], 4));
+#endif /* LWIP_IGNORE_PING */
+}
+END_TEST
+
 /** Create the suite including all tests for this module */
 Suite *
 ip4_suite(void)
@@ -338,6 +392,7 @@ ip4_suite(void)
     TESTFUNC(test_ip4addr_aton),
     TESTFUNC(test_ip4_icmp_replylen_short),
     TESTFUNC(test_ip4_icmp_replylen_first_8),
+    TESTFUNC(test_ip4_icmp_echo),
   };
   return create_suite("IPv4", tests, sizeof(tests)/sizeof(testfunc), ip4_setup, ip4_teardown);
 }
