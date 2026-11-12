@@ -35,6 +35,10 @@ HISTORY
 
   ++ Bugfixes:
 
+  2026-11-12: Maksims Matjakubovs
+  * httpd: fix NULL pointer access for HTTP/0.9 requests to custom files
+    with header included that are read through fs_read_custom()
+
   2025-06-03: Simon Goldschmidt
   * ip4_frag/ip6_frag: fix potential NULL-pointer access on memory errors
 

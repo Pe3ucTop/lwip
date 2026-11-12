@@ -2489,9 +2489,12 @@ http_init_file(struct http_state *hs, struct fs_file *file, int is_09, const cha
                 (hs->handle->flags & FS_FILE_FLAGS_HEADER_INCLUDED) != 0);
 #endif /* !LWIP_HTTPD_DYNAMIC_HEADERS */
 #if LWIP_HTTPD_SUPPORT_V09
-    if (is_09 && ((hs->handle->flags & FS_FILE_FLAGS_HEADER_INCLUDED) != 0)) {
+    if (is_09 && ((hs->handle->flags & FS_FILE_FLAGS_HEADER_INCLUDED) != 0) &&
+        (hs->file != NULL)) {
       /* HTTP/0.9 responses are sent without HTTP header,
-         search for the end of the header. */
+         search for the end of the header.
+         (Not possible for custom files that deliver their data only
+         through fs_read_custom(): hs->file is NULL then.) */
       char *file_start = lwip_strnstr(hs->file, CRLF CRLF, hs->left);
       if (file_start != NULL) {
         size_t diff = file_start + 4 - hs->file;
