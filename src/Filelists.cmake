@@ -177,6 +177,7 @@ set(lwiphttp_SRCS
     ${LWIP_DIR}/src/apps/http/fs.c
     ${LWIP_DIR}/src/apps/http/http_client.c
     ${LWIP_DIR}/src/apps/http/httpd.c
+    ${LWIP_DIR}/src/apps/http/httpd_status_pages.c
 )
 
 # MAKEFSDATA HTTP server host utility

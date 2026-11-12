@@ -9,6 +9,10 @@ HISTORY
   ++ New features:
 
   2026-11-12: Maksims Matjakubovs
+  * httpd: add LWIP_HTTPD_STATUS_PAGES: built-in status pages ("/404.html",
+    "/503.html", ...) served from memory with the header included
+
+  2026-11-12: Maksims Matjakubovs
   * httpd: add LWIP_HTTPD_CUSTOM_FILE_PROVIDERS: several modules can provide
     custom files (fs_custom_provider_register()), asked before or after fsdata
 

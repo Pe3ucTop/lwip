@@ -403,6 +403,24 @@
 #define LWIP_HTTPD_CUSTOM_FILE_PROVIDERS  0
 #endif
 
+/** Set this to 1 to compile httpd_status_pages.c: short, complete HTTP
+ * responses (status line, headers and body) served from memory for exact
+ * URIs such as "/404.html" or "/503.html", see httpd_status_pages_init().
+ * They are asked after fsdata, so files in fsdata still take precedence.
+ * Requires LWIP_HTTPD_CUSTOM_FILES and LWIP_HTTPD_CUSTOM_FILE_PROVIDERS.
+ */
+#if !defined LWIP_HTTPD_STATUS_PAGES || defined __DOXYGEN__
+#define LWIP_HTTPD_STATUS_PAGES           0
+#endif
+
+/** Set this to 1 to let httpd_status_pages_init() add default pages for
+ * "/204.html", "/400.html", "/404.html", "/413.html", "/415.html",
+ * "/500.html", "/501.html" and "/503.html".
+ */
+#if !defined LWIP_HTTPD_STATUS_PAGES_DEFAULTS || defined __DOXYGEN__
+#define LWIP_HTTPD_STATUS_PAGES_DEFAULTS  1
+#endif
+
 /** Set this to 1 to support fs_read() to dynamically read file data.
  * Without this (default=off), only one-block files are supported,
  * and the contents must be ready after fs_open().
