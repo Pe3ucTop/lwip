@@ -9,6 +9,10 @@ HISTORY
   ++ New features:
 
   2026-11-12: Maksims Matjakubovs
+  * httpd: add LWIP_HTTPD_MULTIPART: streaming multipart/form-data parser
+    (http_multipart.c) usable from any POST handler
+
+  2026-11-12: Maksims Matjakubovs
   * httpd: add LWIP_HTTPD_POST_DISPATCH: httpd_post_*() forward each POST request
     to one of several sinks registered with httpd_post_sink_register()
 

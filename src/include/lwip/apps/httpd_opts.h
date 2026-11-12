@@ -174,6 +174,36 @@
 #define HTTPD_POST_DISPATCH_URI_ERROR     "/500.html"
 #endif
 
+/** Set this to 1 to compile http_multipart.c, a streaming parser for
+ * multipart/form-data request bodies (RFC 7578). It does not depend on
+ * httpd and can be used from any POST handler.
+ */
+#if !defined LWIP_HTTPD_MULTIPART || defined __DOXYGEN__
+#define LWIP_HTTPD_MULTIPART              0
+#endif
+
+/** Buffer size for one part header line (http_multipart.c). Longer lines
+ * are cut; HTTP_MULTIPART_FLAG_TRUNCATED is set if this affects
+ * Content-Disposition or Content-Type. */
+#if !defined HTTP_MULTIPART_MAX_HDR_LINE || defined __DOXYGEN__
+#define HTTP_MULTIPART_MAX_HDR_LINE       160
+#endif
+
+/** Maximum length of a form field name (http_multipart.c) */
+#if !defined HTTP_MULTIPART_MAX_NAME || defined __DOXYGEN__
+#define HTTP_MULTIPART_MAX_NAME           32
+#endif
+
+/** Maximum length of a file name (http_multipart.c) */
+#if !defined HTTP_MULTIPART_MAX_FILENAME || defined __DOXYGEN__
+#define HTTP_MULTIPART_MAX_FILENAME       64
+#endif
+
+/** Maximum length of a part Content-Type (http_multipart.c) */
+#if !defined HTTP_MULTIPART_MAX_CONTENT_TYPE || defined __DOXYGEN__
+#define HTTP_MULTIPART_MAX_CONTENT_TYPE   48
+#endif
+
 /* The maximum number of parameters that the CGI handler can be sent. */
 #if !defined LWIP_HTTPD_MAX_CGI_PARAMETERS || defined __DOXYGEN__
 #define LWIP_HTTPD_MAX_CGI_PARAMETERS 16
