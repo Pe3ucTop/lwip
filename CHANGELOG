@@ -9,6 +9,10 @@ HISTORY
   ++ New features:
 
   2026-11-12: Maksims Matjakubovs
+  * httpd: add LWIP_HTTPD_CGI_DECODE_PARAMS to percent-decode CGI parameter
+    names and values before they are passed to the CGI handlers
+
+  2026-11-12: Maksims Matjakubovs
   * httpd: add LWIP_HTTPD_UPLOAD: file upload by POST with multipart/form-data,
     files passed to writer callbacks selected by file name; example in
     contrib/examples/httpd/upload_example

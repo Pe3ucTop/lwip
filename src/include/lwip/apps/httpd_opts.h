@@ -264,6 +264,18 @@
 #define LWIP_HTTPD_MAX_CGI_PARAMETERS 16
 #endif
 
+/** Set this to 1 to percent-decode CGI parameter names and values before
+ * they are passed to the CGI handler (LWIP_HTTPD_CGI) or to
+ * httpd_cgi_handler() (LWIP_HTTPD_CGI_SSI): "%XX" is converted to the byte
+ * 0xXX and '+' to a space. The query string is split at '&' and '=' before
+ * decoding, so encoded delimiters stay part of the name or value.
+ * Malformed escapes and "%00" are passed on unchanged.
+ * Default is 0: parameters are passed as received.
+ */
+#if !defined LWIP_HTTPD_CGI_DECODE_PARAMS || defined __DOXYGEN__
+#define LWIP_HTTPD_CGI_DECODE_PARAMS  0
+#endif
+
 /** LWIP_HTTPD_SSI_MULTIPART==1: SSI handler function is called with 2 more
  * arguments indicating a counter for insert string that are too long to be
  * inserted at once: the SSI handler function must then set 'next_tag_part'

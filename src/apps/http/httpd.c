@@ -688,6 +688,61 @@ http_eof(struct altcp_pcb *pcb, struct http_state *hs)
 }
 
 #if LWIP_HTTPD_CGI || LWIP_HTTPD_CGI_SSI
+#if LWIP_HTTPD_CGI_DECODE_PARAMS
+/** Convert one hex digit to its value, returns -1 for a non-hex character */
+static int
+http_hex_digit(char c)
+{
+  if ((c >= '0') && (c <= '9')) {
+    return c - '0';
+  }
+  if ((c >= 'a') && (c <= 'f')) {
+    return c - 'a' + 10;
+  }
+  if ((c >= 'A') && (c <= 'F')) {
+    return c - 'A' + 10;
+  }
+  return -1;
+}
+
+/**
+ * Decode a NUL-terminated URI parameter name or value in place:
+ * "%XX" becomes the byte 0xXX and '+' becomes ' '.
+ * Malformed escapes are kept as they are. "%00" is kept undecoded, since a
+ * NUL byte would silently truncate the string passed to the CGI handler.
+ *
+ * @param str the string to decode (may be NULL)
+ */
+static void
+http_uri_decode_param(char *str)
+{
+  char *in;
+  char *out;
+  int hi, lo;
+
+  if (str == NULL) {
+    return;
+  }
+  for (in = out = str; *in != '\0'; in++, out++) {
+    if (*in == '+') {
+      *out = ' ';
+    } else if (*in == '%') {
+      hi = http_hex_digit(in[1]);
+      lo = (hi >= 0) ? http_hex_digit(in[2]) : -1;
+      if ((lo >= 0) && ((hi | lo) != 0)) {
+        *out = (char)((hi << 4) | lo);
+        in += 2;
+      } else {
+        *out = *in;
+      }
+    } else {
+      *out = *in;
+    }
+  }
+  *out = '\0';
+}
+#endif /* LWIP_HTTPD_CGI_DECODE_PARAMS */
+
 /**
  * Extract URI parameters from the parameter-part of an URI in the form
  * "test.cgi?x=y" @todo: better explanation!
@@ -751,6 +806,12 @@ extract_uri_parameters(struct http_state *hs, char *params)
     } else {
       http_cgi_param_vals[loop] = NULL;
     }
+#if LWIP_HTTPD_CGI_DECODE_PARAMS
+    /* decode only after splitting, so that "%26" and "%3D" cannot act as
+       delimiters */
+    http_uri_decode_param(http_cgi_params[loop]);
+    http_uri_decode_param(http_cgi_param_vals[loop]);
+#endif /* LWIP_HTTPD_CGI_DECODE_PARAMS */
   }
 
   return loop;
