@@ -179,6 +179,7 @@ set(lwiphttp_SRCS
     ${LWIP_DIR}/src/apps/http/httpd.c
     ${LWIP_DIR}/src/apps/http/httpd_post_dispatch.c
     ${LWIP_DIR}/src/apps/http/httpd_status_pages.c
+    ${LWIP_DIR}/src/apps/http/httpd_upload.c
     ${LWIP_DIR}/src/apps/http/http_multipart.c
 )
 

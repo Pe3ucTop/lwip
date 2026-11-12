@@ -9,6 +9,11 @@ HISTORY
   ++ New features:
 
   2026-11-12: Maksims Matjakubovs
+  * httpd: add LWIP_HTTPD_UPLOAD: file upload by POST with multipart/form-data,
+    files passed to writer callbacks selected by file name; example in
+    contrib/examples/httpd/upload_example
+
+  2026-11-12: Maksims Matjakubovs
   * httpd: add LWIP_HTTPD_MULTIPART: streaming multipart/form-data parser
     (http_multipart.c) usable from any POST handler
 

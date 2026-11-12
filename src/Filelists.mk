@@ -165,6 +165,7 @@ HTTPFILES=$(LWIPDIR)/apps/http/altcp_proxyconnect.c \
 	$(LWIPDIR)/apps/http/httpd.c \
 	$(LWIPDIR)/apps/http/httpd_post_dispatch.c \
 	$(LWIPDIR)/apps/http/httpd_status_pages.c \
+	$(LWIPDIR)/apps/http/httpd_upload.c \
 	$(LWIPDIR)/apps/http/http_multipart.c
 
 # MAKEFSDATA: MAKEFSDATA HTTP server host utility

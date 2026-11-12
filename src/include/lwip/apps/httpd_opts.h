@@ -204,6 +204,61 @@
 #define HTTP_MULTIPART_MAX_CONTENT_TYPE   48
 #endif
 
+/** Set this to 1 to compile httpd_upload.c: file upload by POST with
+ * multipart/form-data. Files are passed to writer callbacks selected by
+ * file name (see httpd_upload_set_routes()). Requires
+ * LWIP_HTTPD_POST_DISPATCH and LWIP_HTTPD_MULTIPART.
+ */
+#if !defined LWIP_HTTPD_UPLOAD || defined __DOXYGEN__
+#define LWIP_HTTPD_UPLOAD                 0
+#endif
+
+/** Default URI for uploads; the URI itself and URIs below it
+ * ("/upload/name.bin") are accepted, see httpd_upload_set_uri(). */
+#if !defined HTTPD_UPLOAD_URI || defined __DOXYGEN__
+#define HTTPD_UPLOAD_URI                  "/upload"
+#endif
+
+/** Number of uploads in progress at the same time */
+#if !defined HTTPD_UPLOAD_MAX_SESSIONS || defined __DOXYGEN__
+#define HTTPD_UPLOAD_MAX_SESSIONS         1
+#endif
+
+/** Maximum Content-Length of an upload request (0: no limit) */
+#if !defined HTTPD_UPLOAD_MAX_LEN || defined __DOXYGEN__
+#define HTTPD_UPLOAD_MAX_LEN              0
+#endif
+
+/** Response URI after a successful upload */
+#if !defined HTTPD_UPLOAD_URI_OK || defined __DOXYGEN__
+#define HTTPD_UPLOAD_URI_OK               "/204.html"
+#endif
+
+/** Response URI for a malformed upload request or body */
+#if !defined HTTPD_UPLOAD_URI_BAD_REQUEST || defined __DOXYGEN__
+#define HTTPD_UPLOAD_URI_BAD_REQUEST      "/400.html"
+#endif
+
+/** Response URI if the request is longer than HTTPD_UPLOAD_MAX_LEN */
+#if !defined HTTPD_UPLOAD_URI_TOO_LARGE || defined __DOXYGEN__
+#define HTTPD_UPLOAD_URI_TOO_LARGE        "/413.html"
+#endif
+
+/** Response URI if the request is not multipart or no writer accepts the file name */
+#if !defined HTTPD_UPLOAD_URI_UNSUPPORTED || defined __DOXYGEN__
+#define HTTPD_UPLOAD_URI_UNSUPPORTED      "/415.html"
+#endif
+
+/** Response URI if a writer fails */
+#if !defined HTTPD_UPLOAD_URI_ERROR || defined __DOXYGEN__
+#define HTTPD_UPLOAD_URI_ERROR            "/500.html"
+#endif
+
+/** Response URI if HTTPD_UPLOAD_MAX_SESSIONS uploads are in progress */
+#if !defined HTTPD_UPLOAD_URI_BUSY || defined __DOXYGEN__
+#define HTTPD_UPLOAD_URI_BUSY             "/503.html"
+#endif
+
 /* The maximum number of parameters that the CGI handler can be sent. */
 #if !defined LWIP_HTTPD_MAX_CGI_PARAMETERS || defined __DOXYGEN__
 #define LWIP_HTTPD_MAX_CGI_PARAMETERS 16
