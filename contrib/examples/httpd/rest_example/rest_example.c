@@ -254,6 +254,9 @@ httpd_headers_before_file_open(const char *headers, u16_t headers_len, const cha
   return NULL;
 }
 
+#if !LWIP_HTTPD_POST_DISPATCH
+/* (with LWIP_HTTPD_POST_DISPATCH, httpd owns these and http_rest_init()
+   registers the router as POST sink) */
 err_t
 httpd_post_begin(void *connection, const char *uri, const char *http_request,
                  u16_t http_request_len, int content_len, char *response_uri,
@@ -277,7 +280,11 @@ httpd_post_finished(void *connection, char *response_uri, u16_t response_uri_len
 {
   http_rest_post_finished(connection, response_uri, response_uri_len);
 }
+#endif /* !LWIP_HTTPD_POST_DISPATCH */
 
+#if !LWIP_HTTPD_CUSTOM_FILE_PROVIDERS
+/* (with LWIP_HTTPD_CUSTOM_FILE_PROVIDERS, fs.c owns these and
+   http_rest_init() registers the router as file provider) */
 int
 fs_open_custom(struct fs_file *file, const char *name)
 {
@@ -298,6 +305,7 @@ fs_close_custom(struct fs_file *file)
 {
   (void)http_rest_fs_close(file);
 }
+#endif /* !LWIP_HTTPD_CUSTOM_FILE_PROVIDERS */
 
 /** Initialize the example: call after httpd_init() */
 void

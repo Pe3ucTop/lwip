@@ -48,6 +48,9 @@
  * With HTTP_REST_DEFINE_HTTPD_HOOKS == 1 the router defines these httpd
  * hooks itself; otherwise the application calls the functions above from
  * its own hooks (e.g. after its own handlers declined a request).
+ * With LWIP_HTTPD_CUSTOM_FILE_PROVIDERS and LWIP_HTTPD_POST_DISPATCH,
+ * http_rest_init() registers the router with httpd's file provider list and
+ * POST dispatcher, so only the GET hook is left to the application.
  *
  * Required httpd options: LWIP_HTTPD_CUSTOM_FILES, LWIP_HTTPD_DYNAMIC_FILE_READ,
  * LWIP_HTTPD_HEADERS_BEFORE_FILE_OPEN (for GET) and LWIP_HTTPD_SUPPORT_POST

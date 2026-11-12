@@ -55,6 +55,9 @@
 #include "lwip/def.h"
 #include "lwip/debug.h"
 #include "lwip/sys.h"
+#if LWIP_HTTPD_POST_DISPATCH
+#include "lwip/apps/httpd_post_dispatch.h"
+#endif
 
 #include <stddef.h>
 #include <string.h>
@@ -130,6 +133,10 @@ static u16_t http_rest_generation;
 
 static const http_rest_route_t *http_rest_routes;
 static size_t http_rest_route_count;
+
+#if LWIP_HTTPD_CUSTOM_FILE_PROVIDERS || LWIP_HTTPD_POST_DISPATCH
+static void http_rest_register_with_httpd(void);
+#endif
 
 /*-------------------------------------------------------------------------*/
 /* Sessions                                                                */
@@ -384,6 +391,9 @@ http_rest_init(void)
   for (i = 0; i < HTTP_REST_MAX_SESSIONS; i++) {
     http_rest_sess_free(&http_rest_sessions[i]);
   }
+#if LWIP_HTTPD_CUSTOM_FILE_PROVIDERS || LWIP_HTTPD_POST_DISPATCH
+  http_rest_register_with_httpd();
+#endif
 }
 
 /**
@@ -1113,6 +1123,118 @@ http_rest_fs_close(struct fs_file *file)
 }
 
 /*-------------------------------------------------------------------------*/
+/* Registration with the httpd file provider list and POST dispatcher      */
+/*-------------------------------------------------------------------------*/
+
+#if LWIP_HTTPD_CUSTOM_FILE_PROVIDERS
+static void
+http_rest_provider_close(struct fs_file *file)
+{
+  (void)http_rest_fs_close(file);
+}
+
+#if LWIP_HTTPD_FS_ASYNC_READ
+static u8_t
+http_rest_provider_canread(struct fs_file *file)
+{
+  /* responses are complete when the file is opened */
+  LWIP_UNUSED_ARG(file);
+  return 1;
+}
+
+static u8_t
+http_rest_provider_wait_read(struct fs_file *file, fs_wait_cb callback_fn, void *callback_arg)
+{
+  LWIP_UNUSED_ARG(file);
+  LWIP_UNUSED_ARG(callback_fn);
+  LWIP_UNUSED_ARG(callback_arg);
+  return 1;
+}
+
+static int
+http_rest_provider_read_async(struct fs_file *file, char *buffer, int count,
+                              fs_wait_cb callback_fn, void *callback_arg)
+{
+  LWIP_UNUSED_ARG(callback_fn);
+  LWIP_UNUSED_ARG(callback_arg);
+  return http_rest_fs_read(file, buffer, count);
+}
+#endif /* LWIP_HTTPD_FS_ASYNC_READ */
+
+static struct fs_custom_provider http_rest_provider;
+#endif /* LWIP_HTTPD_CUSTOM_FILE_PROVIDERS */
+
+#if LWIP_HTTPD_POST_DISPATCH
+static u8_t
+http_rest_sink_match(const char *uri, const char *http_request, u16_t http_request_len)
+{
+  LWIP_UNUSED_ARG(http_request);
+  LWIP_UNUSED_ARG(http_request_len);
+  return http_rest_post_match(uri);
+}
+
+static err_t
+http_rest_sink_begin(void *connection, const char *uri, const char *http_request,
+                     u16_t http_request_len, int content_len, char *response_uri,
+                     u16_t response_uri_len, u8_t *post_auto_wnd)
+{
+  LWIP_UNUSED_ARG(http_request);
+  LWIP_UNUSED_ARG(http_request_len);
+  LWIP_UNUSED_ARG(post_auto_wnd);
+  return http_rest_post_begin(connection, uri, content_len, response_uri, response_uri_len);
+}
+
+static void
+http_rest_sink_finished(void *connection, char *response_uri, u16_t response_uri_len)
+{
+  (void)http_rest_post_finished(connection, response_uri, response_uri_len);
+}
+
+static const struct httpd_post_sink http_rest_sink = {
+  "rest",
+  http_rest_sink_match,
+  http_rest_sink_begin,
+  http_rest_post_receive,
+  http_rest_sink_finished
+};
+#endif /* LWIP_HTTPD_POST_DISPATCH */
+
+#if LWIP_HTTPD_CUSTOM_FILE_PROVIDERS || LWIP_HTTPD_POST_DISPATCH
+/** Register the router as file provider and/or POST sink (once) */
+static void
+http_rest_register_with_httpd(void)
+{
+  static u8_t registered;
+  err_t err;
+
+  if (registered) {
+    return;
+  }
+  registered = 1;
+#if LWIP_HTTPD_CUSTOM_FILE_PROVIDERS
+  memset(&http_rest_provider, 0, sizeof(http_rest_provider));
+  http_rest_provider.open = http_rest_fs_open;
+  http_rest_provider.close = http_rest_provider_close;
+#if LWIP_HTTPD_FS_ASYNC_READ
+  http_rest_provider.canread = http_rest_provider_canread;
+  http_rest_provider.wait_read = http_rest_provider_wait_read;
+  http_rest_provider.read_async = http_rest_provider_read_async;
+#else /* LWIP_HTTPD_FS_ASYNC_READ */
+  http_rest_provider.read = http_rest_fs_read;
+#endif /* LWIP_HTTPD_FS_ASYNC_READ */
+  /* before fsdata: the virtual names must not be served by anything else */
+  err = fs_custom_provider_register(&http_rest_provider, FS_CUSTOM_PROVIDER_BEFORE_FSDATA);
+  LWIP_ASSERT("http_rest: fs_custom_provider_register failed", err == ERR_OK);
+#endif /* LWIP_HTTPD_CUSTOM_FILE_PROVIDERS */
+#if LWIP_HTTPD_POST_DISPATCH
+  err = httpd_post_sink_register(&http_rest_sink);
+  LWIP_ASSERT("http_rest: httpd_post_sink_register failed", err == ERR_OK);
+#endif /* LWIP_HTTPD_POST_DISPATCH */
+  LWIP_UNUSED_ARG(err);
+}
+#endif /* LWIP_HTTPD_CUSTOM_FILE_PROVIDERS || LWIP_HTTPD_POST_DISPATCH */
+
+/*-------------------------------------------------------------------------*/
 /* Optional definitions of the httpd hooks                                 */
 /*-------------------------------------------------------------------------*/
 
@@ -1129,7 +1251,7 @@ httpd_headers_before_file_open(const char *headers, u16_t headers_len, const cha
 }
 #endif /* LWIP_HTTPD_HEADERS_BEFORE_FILE_OPEN */
 
-#if LWIP_HTTPD_SUPPORT_POST
+#if LWIP_HTTPD_SUPPORT_POST && !LWIP_HTTPD_POST_DISPATCH
 err_t
 httpd_post_begin(void *connection, const char *uri, const char *http_request,
                  u16_t http_request_len, int content_len, char *response_uri,
@@ -1152,8 +1274,9 @@ httpd_post_finished(void *connection, char *response_uri, u16_t response_uri_len
 {
   http_rest_post_finished(connection, response_uri, response_uri_len);
 }
-#endif /* LWIP_HTTPD_SUPPORT_POST */
+#endif /* LWIP_HTTPD_SUPPORT_POST && !LWIP_HTTPD_POST_DISPATCH */
 
+#if !LWIP_HTTPD_CUSTOM_FILE_PROVIDERS
 int
 fs_open_custom(struct fs_file *file, const char *name)
 {
@@ -1192,6 +1315,7 @@ fs_close_custom(struct fs_file *file)
 {
   http_rest_fs_close(file);
 }
+#endif /* !LWIP_HTTPD_CUSTOM_FILE_PROVIDERS */
 #endif /* HTTP_REST_DEFINE_HTTPD_HOOKS */
 
 #endif /* LWIP_HTTPD_CUSTOM_FILES && LWIP_HTTPD_DYNAMIC_FILE_READ && ... */

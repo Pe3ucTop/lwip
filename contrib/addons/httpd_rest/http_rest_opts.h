@@ -96,7 +96,10 @@
  * fs_read_custom(), fs_close_custom() as thin wrappers around the
  * http_rest_*() integration functions.
  * Leave at 0 if the application (or another module) already implements
- * these hooks; it must then call the http_rest_*() functions itself. */
+ * these hooks; it must then call the http_rest_*() functions itself.
+ * With LWIP_HTTPD_CUSTOM_FILE_PROVIDERS or LWIP_HTTPD_POST_DISPATCH, httpd
+ * owns the fs or POST hooks: http_rest_init() then registers the router as
+ * file provider / POST sink and only the remaining hooks are defined here. */
 #if !defined HTTP_REST_DEFINE_HTTPD_HOOKS || defined __DOXYGEN__
 #define HTTP_REST_DEFINE_HTTPD_HOOKS 0
 #endif
