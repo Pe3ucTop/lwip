@@ -86,6 +86,10 @@
 /* MIB2 stats are required to check IPv4 reassembly results */
 #define MIB2_STATS                      1
 
+/* httpd WebSocket tests */
+#define LWIP_HTTPD_SUPPORT_WEBSOCKET    1
+#define MEMP_NUM_PARALLEL_HTTPD_WEBSOCKET_CONNS 2
+
 /* netif tests want to test this, so enable: */
 #define LWIP_NETIF_EXT_STATUS_CALLBACK  1
 

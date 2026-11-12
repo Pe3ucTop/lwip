@@ -41,6 +41,7 @@ TESTFILES=$(TESTDIR)/lwip_unittests.c \
 	$(TESTDIR)/core/test_timers.c \
 	$(TESTDIR)/dhcp/test_dhcp.c \
 	$(TESTDIR)/etharp/test_etharp.c \
+	$(TESTDIR)/httpd/test_httpd_ws.c \
 	$(TESTDIR)/ip4/test_ip4.c \
 	$(TESTDIR)/ip6/test_ip6.c \
 	$(TESTDIR)/lowpan6/test_lowpan6.c \
