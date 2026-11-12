@@ -289,6 +289,24 @@
 #define LWIP_HTTPD_SUPPORT_11_KEEPALIVE     0
 #endif
 
+/** Set this to 1 to enable the WebSocket (RFC 6455) server extension
+ * (httpd_ws.c, see lwip/apps/httpd_ws.h). A request carrying
+ * "Upgrade: websocket" for a registered URI is upgraded instead of being
+ * served from the file system. Requires LWIP_TCP and LWIP_CALLBACK_API.
+ */
+#if !defined LWIP_HTTPD_SUPPORT_WEBSOCKET || defined __DOXYGEN__
+#define LWIP_HTTPD_SUPPORT_WEBSOCKET        0
+#endif
+
+/** SHA-1 function used for the Sec-WebSocket-Accept value.
+ * Signature: void f(const u8_t *input, u16_t len, u8_t *digest20).
+ * Defaults to the small built-in implementation; define it in lwipopts.h to
+ * reuse an existing one (e.g. a wrapper around mbedtls_sha1()).
+ */
+#if !defined LWIP_HTTPD_WS_SHA1 || defined __DOXYGEN__
+#define LWIP_HTTPD_WS_SHA1(input, len, digest) httpd_ws_sha1(input, len, digest)
+#endif
+
 /** Set this to 1 to support HTTP request coming in in multiple packets/pbufs */
 #if !defined LWIP_HTTPD_SUPPORT_REQUESTLIST || defined __DOXYGEN__
 #define LWIP_HTTPD_SUPPORT_REQUESTLIST      1

@@ -162,7 +162,9 @@ SNMPFILES=$(LWIPDIR)/apps/snmp/snmp_asn1.c \
 HTTPFILES=$(LWIPDIR)/apps/http/altcp_proxyconnect.c \
 	$(LWIPDIR)/apps/http/fs.c \
 	$(LWIPDIR)/apps/http/http_client.c \
-	$(LWIPDIR)/apps/http/httpd.c
+	$(LWIPDIR)/apps/http/httpd.c \
+	$(LWIPDIR)/apps/http/httpd_ws_base64.c \
+	$(LWIPDIR)/apps/http/httpd_ws_sha1.c
 
 # MAKEFSDATA: MAKEFSDATA HTTP server host utility
 MAKEFSDATAFILES=$(LWIPDIR)/apps/http/makefsdata/makefsdata.c
