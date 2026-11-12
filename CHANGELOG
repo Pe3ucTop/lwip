@@ -13,6 +13,10 @@ HISTORY
     names and values before they are passed to the CGI handlers
 
   2026-11-12: Maksims Matjakubovs
+  * contrib/addons/httpd_rest: add a parser for URL query strings and
+    application/x-www-form-urlencoded bodies (http_rest_query_parse())
+
+  2026-11-12: Maksims Matjakubovs
   * httpd: add LWIP_HTTPD_UPLOAD: file upload by POST with multipart/form-data,
     files passed to writer callbacks selected by file name; example in
     contrib/examples/httpd/upload_example

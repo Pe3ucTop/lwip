@@ -53,6 +53,7 @@ target_include_directories(lwipcontribapps PRIVATE ${LWIP_INCLUDE_DIRS} ${LWIP_M
 set(lwipcontribaddons_SRCS
     ${LWIP_CONTRIB_DIR}/addons/tcp_isn/tcp_isn.c
     ${LWIP_CONTRIB_DIR}/addons/ipv6_static_routing/ip6_route_table.c
+    ${LWIP_CONTRIB_DIR}/addons/httpd_rest/http_rest_query.c
 #    ${LWIP_CONTRIB_DIR}/addons/netconn/external_resolve/dnssd.c
 #    ${LWIP_CONTRIB_DIR}/addons/tcp_md5/tcp_md5.c
 )
