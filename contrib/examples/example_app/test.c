@@ -84,6 +84,7 @@
 #include "examples/httpd/cgi_example/cgi_example.h"
 #include "examples/httpd/fs_example/fs_example.h"
 #include "examples/httpd/https_example/https_example.h"
+#include "examples/httpd/rest_example/rest_example.h"
 #include "examples/httpd/ssi_example/ssi_example.h"
 #include "examples/httpd/upload_example/upload_example.h"
 
@@ -544,6 +545,9 @@ apps_init(void)
 #endif
 #if defined(LWIP_HTTPD_EXAMPLE_UPLOAD) && LWIP_HTTPD_EXAMPLE_UPLOAD
   upload_ex_init();
+#endif
+#if defined(LWIP_HTTPD_EXAMPLE_REST) && LWIP_HTTPD_EXAMPLE_REST
+  rest_ex_init();
 #endif
 #endif /* LWIP_HTTPD_APP_NETCONN */
 #endif /* LWIP_HTTPD_APP && LWIP_TCP */

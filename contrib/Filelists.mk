@@ -43,6 +43,7 @@ CONTRIBAPPFILES=$(CONTRIBDIR)/apps/httpserver/httpserver-netconn.c \
 	$(CONTRIBDIR)/apps/rtp/rtp.c \
 	$(CONTRIBDIR)/examples/httpd/fs_example/fs_example.c \
 	$(CONTRIBDIR)/examples/httpd/https_example/https_example.c \
+	$(CONTRIBDIR)/examples/httpd/rest_example/rest_example.c \
 	$(CONTRIBDIR)/examples/httpd/ssi_example/ssi_example.c \
 	$(CONTRIBDIR)/examples/httpd/upload_example/upload_example.c \
 	$(CONTRIBDIR)/examples/lwiperf/lwiperf_example.c \
@@ -55,4 +56,6 @@ CONTRIBAPPFILES=$(CONTRIBDIR)/apps/httpserver/httpserver-netconn.c \
 	$(CONTRIBDIR)/examples/sntp/sntp_example.c \
 	$(CONTRIBDIR)/examples/tftp/tftp_example.c \
 	$(CONTRIBDIR)/addons/tcp_isn/tcp_isn.c \
-	$(CONTRIBDIR)/addons/ipv6_static_routing/ip6_route_table.c
+	$(CONTRIBDIR)/addons/ipv6_static_routing/ip6_route_table.c \
+	$(CONTRIBDIR)/addons/httpd_rest/http_rest.c \
+	$(CONTRIBDIR)/addons/httpd_rest/http_rest_query.c
