@@ -136,6 +136,129 @@
 #define LWIP_HTTPD_SUPPORT_POST   0
 #endif
 
+/** Set this to 1 (requires LWIP_HTTPD_SUPPORT_POST) to compile
+ * httpd_post_dispatch.c: it implements httpd_post_begin(),
+ * httpd_post_receive_data() and httpd_post_finished() and forwards each
+ * request to one of several handlers registered with
+ * httpd_post_sink_register(). The application must not define these
+ * functions itself then.
+ */
+#if !defined LWIP_HTTPD_POST_DISPATCH || defined __DOXYGEN__
+#define LWIP_HTTPD_POST_DISPATCH          0
+#endif
+
+/** Maximum number of POST sinks for LWIP_HTTPD_POST_DISPATCH */
+#if !defined HTTPD_POST_DISPATCH_MAX_SINKS || defined __DOXYGEN__
+#define HTTPD_POST_DISPATCH_MAX_SINKS     4
+#endif
+
+/** Maximum number of POST requests in progress at the same time for
+ * LWIP_HTTPD_POST_DISPATCH. Further requests get HTTPD_POST_DISPATCH_URI_BUSY.
+ */
+#if !defined HTTPD_POST_DISPATCH_MAX_CONNS || defined __DOXYGEN__
+#define HTTPD_POST_DISPATCH_MAX_CONNS     4
+#endif
+
+/** Response URI if no POST sink matches the request */
+#if !defined HTTPD_POST_DISPATCH_URI_NO_SINK || defined __DOXYGEN__
+#define HTTPD_POST_DISPATCH_URI_NO_SINK   "/404.html"
+#endif
+
+/** Response URI if HTTPD_POST_DISPATCH_MAX_CONNS requests are in progress */
+#if !defined HTTPD_POST_DISPATCH_URI_BUSY || defined __DOXYGEN__
+#define HTTPD_POST_DISPATCH_URI_BUSY      "/503.html"
+#endif
+
+/** Response URI if httpd_post_finished() is called for an unknown connection */
+#if !defined HTTPD_POST_DISPATCH_URI_ERROR || defined __DOXYGEN__
+#define HTTPD_POST_DISPATCH_URI_ERROR     "/500.html"
+#endif
+
+/** Set this to 1 to compile http_multipart.c, a streaming parser for
+ * multipart/form-data request bodies (RFC 7578). It does not depend on
+ * httpd and can be used from any POST handler.
+ */
+#if !defined LWIP_HTTPD_MULTIPART || defined __DOXYGEN__
+#define LWIP_HTTPD_MULTIPART              0
+#endif
+
+/** Buffer size for one part header line (http_multipart.c). Longer lines
+ * are cut; HTTP_MULTIPART_FLAG_TRUNCATED is set if this affects
+ * Content-Disposition or Content-Type. */
+#if !defined HTTP_MULTIPART_MAX_HDR_LINE || defined __DOXYGEN__
+#define HTTP_MULTIPART_MAX_HDR_LINE       160
+#endif
+
+/** Maximum length of a form field name (http_multipart.c) */
+#if !defined HTTP_MULTIPART_MAX_NAME || defined __DOXYGEN__
+#define HTTP_MULTIPART_MAX_NAME           32
+#endif
+
+/** Maximum length of a file name (http_multipart.c) */
+#if !defined HTTP_MULTIPART_MAX_FILENAME || defined __DOXYGEN__
+#define HTTP_MULTIPART_MAX_FILENAME       64
+#endif
+
+/** Maximum length of a part Content-Type (http_multipart.c) */
+#if !defined HTTP_MULTIPART_MAX_CONTENT_TYPE || defined __DOXYGEN__
+#define HTTP_MULTIPART_MAX_CONTENT_TYPE   48
+#endif
+
+/** Set this to 1 to compile httpd_upload.c: file upload by POST with
+ * multipart/form-data. Files are passed to writer callbacks selected by
+ * file name (see httpd_upload_set_routes()). Requires
+ * LWIP_HTTPD_POST_DISPATCH and LWIP_HTTPD_MULTIPART.
+ */
+#if !defined LWIP_HTTPD_UPLOAD || defined __DOXYGEN__
+#define LWIP_HTTPD_UPLOAD                 0
+#endif
+
+/** Default URI for uploads; the URI itself and URIs below it
+ * ("/upload/name.bin") are accepted, see httpd_upload_set_uri(). */
+#if !defined HTTPD_UPLOAD_URI || defined __DOXYGEN__
+#define HTTPD_UPLOAD_URI                  "/upload"
+#endif
+
+/** Number of uploads in progress at the same time */
+#if !defined HTTPD_UPLOAD_MAX_SESSIONS || defined __DOXYGEN__
+#define HTTPD_UPLOAD_MAX_SESSIONS         1
+#endif
+
+/** Maximum Content-Length of an upload request (0: no limit) */
+#if !defined HTTPD_UPLOAD_MAX_LEN || defined __DOXYGEN__
+#define HTTPD_UPLOAD_MAX_LEN              0
+#endif
+
+/** Response URI after a successful upload */
+#if !defined HTTPD_UPLOAD_URI_OK || defined __DOXYGEN__
+#define HTTPD_UPLOAD_URI_OK               "/204.html"
+#endif
+
+/** Response URI for a malformed upload request or body */
+#if !defined HTTPD_UPLOAD_URI_BAD_REQUEST || defined __DOXYGEN__
+#define HTTPD_UPLOAD_URI_BAD_REQUEST      "/400.html"
+#endif
+
+/** Response URI if the request is longer than HTTPD_UPLOAD_MAX_LEN */
+#if !defined HTTPD_UPLOAD_URI_TOO_LARGE || defined __DOXYGEN__
+#define HTTPD_UPLOAD_URI_TOO_LARGE        "/413.html"
+#endif
+
+/** Response URI if the request is not multipart or no writer accepts the file name */
+#if !defined HTTPD_UPLOAD_URI_UNSUPPORTED || defined __DOXYGEN__
+#define HTTPD_UPLOAD_URI_UNSUPPORTED      "/415.html"
+#endif
+
+/** Response URI if a writer fails */
+#if !defined HTTPD_UPLOAD_URI_ERROR || defined __DOXYGEN__
+#define HTTPD_UPLOAD_URI_ERROR            "/500.html"
+#endif
+
+/** Response URI if HTTPD_UPLOAD_MAX_SESSIONS uploads are in progress */
+#if !defined HTTPD_UPLOAD_URI_BUSY || defined __DOXYGEN__
+#define HTTPD_UPLOAD_URI_BUSY             "/503.html"
+#endif
+
 /* The maximum number of parameters that the CGI handler can be sent. */
 #if !defined LWIP_HTTPD_MAX_CGI_PARAMETERS || defined __DOXYGEN__
 #define LWIP_HTTPD_MAX_CGI_PARAMETERS 16
@@ -389,6 +512,36 @@
  */
 #if !defined LWIP_HTTPD_CUSTOM_FILES || defined __DOXYGEN__
 #define LWIP_HTTPD_CUSTOM_FILES       0
+#endif
+
+/** Set this to 1 (requires LWIP_HTTPD_CUSTOM_FILES) to let several modules
+ * provide custom files at the same time. fs.c then implements the
+ * fs_*_custom() functions itself and dispatches to a list of
+ * struct fs_custom_provider registered with fs_custom_provider_register().
+ * Providers can be asked before or after the files in fsdata, so a
+ * provider of fallback pages (e.g. error pages) does not hide files in
+ * fsdata. The application must not define fs_open_custom() etc. then.
+ */
+#if !defined LWIP_HTTPD_CUSTOM_FILE_PROVIDERS || defined __DOXYGEN__
+#define LWIP_HTTPD_CUSTOM_FILE_PROVIDERS  0
+#endif
+
+/** Set this to 1 to compile httpd_status_pages.c: short, complete HTTP
+ * responses (status line, headers and body) served from memory for exact
+ * URIs such as "/404.html" or "/503.html", see httpd_status_pages_init().
+ * They are asked after fsdata, so files in fsdata still take precedence.
+ * Requires LWIP_HTTPD_CUSTOM_FILES and LWIP_HTTPD_CUSTOM_FILE_PROVIDERS.
+ */
+#if !defined LWIP_HTTPD_STATUS_PAGES || defined __DOXYGEN__
+#define LWIP_HTTPD_STATUS_PAGES           0
+#endif
+
+/** Set this to 1 to let httpd_status_pages_init() add default pages for
+ * "/204.html", "/400.html", "/404.html", "/413.html", "/415.html",
+ * "/500.html", "/501.html" and "/503.html".
+ */
+#if !defined LWIP_HTTPD_STATUS_PAGES_DEFAULTS || defined __DOXYGEN__
+#define LWIP_HTTPD_STATUS_PAGES_DEFAULTS  1
 #endif
 
 /** Set this to 1 to support fs_read() to dynamically read file data.

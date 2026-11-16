@@ -15,6 +15,25 @@ HISTORY
   2026-11-12: Maksims Matjakubovs
   * icmp: add LWIP_IGNORE_PING to not answer IPv4 ICMP echo requests and remove
     the echo reply code (e.g. when the Ethernet controller answers ping itself)
+  * httpd: add LWIP_HTTPD_UPLOAD: file upload by POST with multipart/form-data,
+    files passed to writer callbacks selected by file name; example in
+    contrib/examples/httpd/upload_example
+
+  2026-11-12: Maksims Matjakubovs
+  * httpd: add LWIP_HTTPD_MULTIPART: streaming multipart/form-data parser
+    (http_multipart.c) usable from any POST handler
+
+  2026-11-12: Maksims Matjakubovs
+  * httpd: add LWIP_HTTPD_POST_DISPATCH: httpd_post_*() forward each POST request
+    to one of several sinks registered with httpd_post_sink_register()
+
+  2026-11-12: Maksims Matjakubovs
+  * httpd: add LWIP_HTTPD_STATUS_PAGES: built-in status pages ("/404.html",
+    "/503.html", ...) served from memory with the header included
+
+  2026-11-12: Maksims Matjakubovs
+  * httpd: add LWIP_HTTPD_CUSTOM_FILE_PROVIDERS: several modules can provide
+    custom files (fs_custom_provider_register()), asked before or after fsdata
 
   ++ Bugfixes:
 

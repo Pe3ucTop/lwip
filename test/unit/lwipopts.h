@@ -115,4 +115,13 @@
 #define IPV6_FRAG_COPYHEADER            1
 #endif
 
+/* httpd POST infrastructure (test/unit/httpd) */
+#define LWIP_HTTPD_SUPPORT_POST             1
+#define LWIP_HTTPD_POST_DISPATCH            1
+#define LWIP_HTTPD_CUSTOM_FILES             1
+#define LWIP_HTTPD_CUSTOM_FILE_PROVIDERS    1
+#define LWIP_HTTPD_STATUS_PAGES             1
+#define LWIP_HTTPD_MULTIPART                1
+#define LWIP_HTTPD_UPLOAD                   1
+
 #endif /* LWIP_HDR_LWIPOPTS_H */

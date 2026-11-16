@@ -32,11 +32,130 @@
 
 #include "lwip/apps/httpd_opts.h"
 #include "lwip/def.h"
+#include "lwip/debug.h"
 #include "lwip/apps/fs.h"
 #include <string.h>
 
 
 #include HTTPD_FSDATA_FILE
+
+#if LWIP_HTTPD_CUSTOM_FILE_PROVIDERS
+#if !LWIP_HTTPD_CUSTOM_FILES
+#error LWIP_HTTPD_CUSTOM_FILE_PROVIDERS needs LWIP_HTTPD_CUSTOM_FILES
+#endif
+
+/** Registered custom file providers, in registration order */
+static struct fs_custom_provider *fs_custom_providers;
+
+/**
+ * @ingroup httpd
+ * Register a source of custom files (LWIP_HTTPD_CUSTOM_FILE_PROVIDERS).
+ * Providers with the same @p where are asked in registration order.
+ *
+ * @param provider the provider, must stay valid (it is linked into a list)
+ * @param where FS_CUSTOM_PROVIDER_BEFORE_FSDATA or FS_CUSTOM_PROVIDER_AFTER_FSDATA
+ * @return ERR_OK, ERR_ARG on invalid arguments, ERR_VAL if already registered
+ */
+err_t
+fs_custom_provider_register(struct fs_custom_provider *provider, u8_t where)
+{
+  struct fs_custom_provider **tail;
+
+  LWIP_ERROR("fs_custom_provider_register: invalid provider",
+             (provider != NULL) && (provider->open != NULL), return ERR_ARG;);
+  LWIP_ERROR("fs_custom_provider_register: invalid where",
+             (where == FS_CUSTOM_PROVIDER_BEFORE_FSDATA) ||
+             (where == FS_CUSTOM_PROVIDER_AFTER_FSDATA), return ERR_ARG;);
+
+  for (tail = &fs_custom_providers; *tail != NULL; tail = &(*tail)->next) {
+    if (*tail == provider) {
+      return ERR_VAL;
+    }
+  }
+  provider->where = where;
+  provider->next = NULL;
+  *tail = provider;
+  return ERR_OK;
+}
+
+static int
+fs_custom_open_where(struct fs_file *file, const char *name, u8_t where)
+{
+  struct fs_custom_provider *p;
+  for (p = fs_custom_providers; p != NULL; p = p->next) {
+    if ((p->where == where) && p->open(file, name)) {
+      file->provider = p;
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* With LWIP_HTTPD_CUSTOM_FILE_PROVIDERS, the fs_*_custom() functions are
+   implemented here and dispatch to the registered providers. */
+int
+fs_open_custom(struct fs_file *file, const char *name)
+{
+  return fs_custom_open_where(file, name, FS_CUSTOM_PROVIDER_BEFORE_FSDATA);
+}
+
+void
+fs_close_custom(struct fs_file *file)
+{
+  const struct fs_custom_provider *p = file->provider;
+  LWIP_ASSERT("fs_close_custom: no provider", p != NULL);
+  file->provider = NULL;
+  if ((p != NULL) && (p->close != NULL)) {
+    p->close(file);
+  }
+}
+
+#if LWIP_HTTPD_FS_ASYNC_READ
+u8_t
+fs_canread_custom(struct fs_file *file)
+{
+  const struct fs_custom_provider *p = file->provider;
+  LWIP_ASSERT("fs_canread_custom: no provider", p != NULL);
+  if ((p == NULL) || (p->canread == NULL)) {
+    return 1;
+  }
+  return p->canread(file);
+}
+
+u8_t
+fs_wait_read_custom(struct fs_file *file, fs_wait_cb callback_fn, void *callback_arg)
+{
+  const struct fs_custom_provider *p = file->provider;
+  LWIP_ASSERT("fs_wait_read_custom: no provider", p != NULL);
+  if ((p == NULL) || (p->wait_read == NULL)) {
+    return 0;
+  }
+  return p->wait_read(file, callback_fn, callback_arg);
+}
+
+int
+fs_read_async_custom(struct fs_file *file, char *buffer, int count, fs_wait_cb callback_fn, void *callback_arg)
+{
+  const struct fs_custom_provider *p = file->provider;
+  LWIP_ASSERT("fs_read_async_custom: no provider", p != NULL);
+  if ((p == NULL) || (p->read_async == NULL)) {
+    return FS_READ_EOF;
+  }
+  return p->read_async(file, buffer, count, callback_fn, callback_arg);
+}
+#else /* LWIP_HTTPD_FS_ASYNC_READ */
+int
+fs_read_custom(struct fs_file *file, char *buffer, int count)
+{
+  const struct fs_custom_provider *p = file->provider;
+  LWIP_ASSERT("fs_read_custom: no provider", p != NULL);
+  if ((p == NULL) || (p->read == NULL)) {
+    return FS_READ_EOF;
+  }
+  return p->read(file, buffer, count);
+}
+#endif /* LWIP_HTTPD_FS_ASYNC_READ */
+#endif /* LWIP_HTTPD_CUSTOM_FILE_PROVIDERS */
 
 /*-----------------------------------------------------------------------------------*/
 err_t
@@ -74,6 +193,12 @@ fs_open(struct fs_file *file, const char *name)
       return ERR_OK;
     }
   }
+#if LWIP_HTTPD_CUSTOM_FILES && LWIP_HTTPD_CUSTOM_FILE_PROVIDERS
+  if (fs_custom_open_where(file, name, FS_CUSTOM_PROVIDER_AFTER_FSDATA)) {
+    file->flags |= FS_FILE_FLAGS_CUSTOM;
+    return ERR_OK;
+  }
+#endif /* LWIP_HTTPD_CUSTOM_FILES && LWIP_HTTPD_CUSTOM_FILE_PROVIDERS */
   /* file not found */
   return ERR_VAL;
 }
