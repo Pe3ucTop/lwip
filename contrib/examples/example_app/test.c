@@ -87,6 +87,7 @@
 #include "examples/httpd/rest_example/rest_example.h"
 #include "examples/httpd/ssi_example/ssi_example.h"
 #include "examples/httpd/upload_example/upload_example.h"
+#include "examples/httpd/websocket_example/websocket_example.h"
 
 #include "default_netif.h"
 
@@ -548,6 +549,9 @@ apps_init(void)
 #endif
 #if defined(LWIP_HTTPD_EXAMPLE_REST) && LWIP_HTTPD_EXAMPLE_REST
   rest_ex_init();
+#endif
+#if defined(LWIP_HTTPD_EXAMPLE_WEBSOCKET) && LWIP_HTTPD_EXAMPLE_WEBSOCKET
+  websocket_ex_init();
 #endif
 #endif /* LWIP_HTTPD_APP_NETCONN */
 #endif /* LWIP_HTTPD_APP && LWIP_TCP */

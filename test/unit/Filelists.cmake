@@ -25,6 +25,7 @@ set(LWIP_TESTFILES
 	${LWIP_TESTDIR}/core/test_timers.c
 	${LWIP_TESTDIR}/dhcp/test_dhcp.c
 	${LWIP_TESTDIR}/etharp/test_etharp.c
+	${LWIP_TESTDIR}/httpd/test_httpd_ws.c
 	${LWIP_TESTDIR}/ip4/test_ip4.c
 	${LWIP_TESTDIR}/ip6/test_ip6.c
 	${LWIP_TESTDIR}/lowpan6/test_lowpan6.c

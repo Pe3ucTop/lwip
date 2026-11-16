@@ -46,6 +46,7 @@ CONTRIBAPPFILES=$(CONTRIBDIR)/apps/httpserver/httpserver-netconn.c \
 	$(CONTRIBDIR)/examples/httpd/rest_example/rest_example.c \
 	$(CONTRIBDIR)/examples/httpd/ssi_example/ssi_example.c \
 	$(CONTRIBDIR)/examples/httpd/upload_example/upload_example.c \
+	$(CONTRIBDIR)/examples/httpd/websocket_example/websocket_example.c \
 	$(CONTRIBDIR)/examples/lwiperf/lwiperf_example.c \
 	$(CONTRIBDIR)/examples/mdns/mdns_example.c \
 	$(CONTRIBDIR)/examples/mqtt/mqtt_example.c \

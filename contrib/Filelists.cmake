@@ -18,6 +18,7 @@ set(lwipcontribexamples_SRCS
     ${LWIP_CONTRIB_DIR}/examples/httpd/rest_example/rest_example.c
     ${LWIP_CONTRIB_DIR}/examples/httpd/ssi_example/ssi_example.c
     ${LWIP_CONTRIB_DIR}/examples/httpd/upload_example/upload_example.c
+    ${LWIP_CONTRIB_DIR}/examples/httpd/websocket_example/websocket_example.c
     ${LWIP_CONTRIB_DIR}/examples/lwiperf/lwiperf_example.c
     ${LWIP_CONTRIB_DIR}/examples/mdns/mdns_example.c
     ${LWIP_CONTRIB_DIR}/examples/mqtt/mqtt_example.c

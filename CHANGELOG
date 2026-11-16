@@ -15,6 +15,8 @@ HISTORY
   2026-11-12: Maksims Matjakubovs
   * icmp: add LWIP_IGNORE_PING to not answer IPv4 ICMP echo requests and remove
     the echo reply code (e.g. when the Ethernet controller answers ping itself)
+
+  2026-11-12: Maksims Matjakubovs
   * httpd: add LWIP_HTTPD_CGI_DECODE_PARAMS to percent-decode CGI parameter
     names and values before they are passed to the CGI handlers
 
@@ -50,6 +52,11 @@ HISTORY
   2026-11-12: Maksims Matjakubovs
   * httpd: add LWIP_HTTPD_CUSTOM_FILE_PROVIDERS: several modules can provide
     custom files (fs_custom_provider_register()), asked before or after fsdata
+
+  2026-11-12: Maksims Matjakubovs
+  * httpd: add a WebSocket (RFC 6455) server extension (LWIP_HTTPD_SUPPORT_WEBSOCKET,
+    lwip/apps/httpd_ws.h), design after the httpd WebSocket support by
+    Sakari Kapanen and lujji/esp-httpd
 
   ++ Bugfixes:
 

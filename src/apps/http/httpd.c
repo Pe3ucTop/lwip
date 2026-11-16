@@ -112,6 +112,10 @@
 #include <stdlib.h> /* atoi */
 #include <stdio.h>
 
+#if LWIP_HTTPD_SUPPORT_WEBSOCKET
+#include "lwip/apps/httpd_ws_priv.h"
+#endif /* LWIP_HTTPD_SUPPORT_WEBSOCKET */
+
 #if LWIP_TCP && LWIP_CALLBACK_API
 
 /** Minimum length for a valid HTTP/0.9 request: "GET /\r\n" -> 7 bytes */
@@ -284,6 +288,10 @@ struct http_state {
   u8_t post_finished;
 #endif /* LWIP_HTTPD_POST_MANUAL_WND */
 #endif /* LWIP_HTTPD_SUPPORT_POST*/
+#if LWIP_HTTPD_SUPPORT_WEBSOCKET
+  /** set when the connection has been upgraded to WebSocket */
+  struct httpd_ws_conn *ws;
+#endif /* LWIP_HTTPD_SUPPORT_WEBSOCKET */
 };
 
 #if HTTPD_USE_MEM_POOL
@@ -391,6 +399,10 @@ http_kill_oldest_connection(u8_t ssi_required)
 #else /* LWIP_HTTPD_SSI */
     LWIP_UNUSED_ARG(ssi_required);
 #endif /* LWIP_HTTPD_SSI */
+#if LWIP_HTTPD_SUPPORT_WEBSOCKET
+    /* long-lived WebSocket connections are not killed for new requests */
+    if (hs->next->ws == NULL)
+#endif /* LWIP_HTTPD_SUPPORT_WEBSOCKET */
     {
       hs_free_next = hs;
     }
@@ -540,6 +552,12 @@ static void
 http_state_free(struct http_state *hs)
 {
   if (hs != NULL) {
+#if LWIP_HTTPD_SUPPORT_WEBSOCKET
+    if (hs->ws != NULL) {
+      httpd_ws_free(hs->ws);
+      hs->ws = NULL;
+    }
+#endif /* LWIP_HTTPD_SUPPORT_WEBSOCKET */
     http_state_eof(hs);
     http_remove_connection(hs);
     HTTP_FREE_HTTP_STATE(hs);
@@ -1664,6 +1682,13 @@ http_send(struct altcp_pcb *pcb, struct http_state *hs)
     return 0;
   }
 
+#if LWIP_HTTPD_SUPPORT_WEBSOCKET
+  if (hs->ws != NULL) {
+    /* upgraded connection: httpd_ws sends everything */
+    return 0;
+  }
+#endif /* LWIP_HTTPD_SUPPORT_WEBSOCKET */
+
 #if LWIP_HTTPD_FS_ASYNC_READ
   /* Check if we are allowed to read from this file.
      (e.g. SSI might want to delay sending until data is available) */
@@ -2155,6 +2180,9 @@ http_parse_request(struct pbuf *inp, struct http_state *hs, struct altcp_pcb *pc
         /* wait for CRLFCRLF (indicating end of HTTP headers) before parsing anything */
         if (lwip_strnstr(data, CRLF CRLF, data_len) != NULL) {
           char *uri = sp1 + 1;
+#if LWIP_HTTPD_SUPPORT_WEBSOCKET
+          err_t ws_err;
+#endif /* LWIP_HTTPD_SUPPORT_WEBSOCKET */
 #if LWIP_HTTPD_SUPPORT_11_KEEPALIVE
           /* This is HTTP/1.0 compatible: for strict 1.1, a connection
              would always be persistent unless "close" was specified. */
@@ -2189,6 +2217,13 @@ http_parse_request(struct pbuf *inp, struct http_state *hs, struct altcp_pcb *pc
             return err;
           } else
 #endif /* LWIP_HTTPD_SUPPORT_POST */
+#if LWIP_HTTPD_SUPPORT_WEBSOCKET
+          if ((ws_err = httpd_ws_handshake(pcb, uri, crlf + 2,
+                                           (u16_t)(data_len - (crlf + 2 - data)), &hs->ws)) != ERR_VAL) {
+            /* ERR_OK: upgraded; ERR_ARG: error response sent, close */
+            return ws_err;
+          } else
+#endif /* LWIP_HTTPD_SUPPORT_WEBSOCKET */
           {
 #if LWIP_HTTPD_HEADERS_BEFORE_FILE_OPEN
             void *obj;
@@ -2572,6 +2607,13 @@ http_sent(void *arg, struct altcp_pcb *pcb, u16_t len)
 
   hs->retries = 0;
 
+#if LWIP_HTTPD_SUPPORT_WEBSOCKET
+  if (hs->ws != NULL) {
+    httpd_ws_sent(hs->ws, len);
+    return ERR_OK;
+  }
+#endif /* LWIP_HTTPD_SUPPORT_WEBSOCKET */
+
   http_send(pcb, hs);
 
   return ERR_OK;
@@ -2605,6 +2647,15 @@ http_poll(void *arg, struct altcp_pcb *pcb)
 #endif /* LWIP_HTTPD_ABORT_ON_CLOSE_MEM_ERROR */
     return ERR_OK;
   } else {
+#if LWIP_HTTPD_SUPPORT_WEBSOCKET
+    if (hs->ws != NULL) {
+      /* upgraded connection: httpd_ws handles keep-alive and close timeouts */
+      if (httpd_ws_poll(hs->ws) != ERR_OK) {
+        http_close_conn(pcb, hs);
+      }
+      return ERR_OK;
+    }
+#endif /* LWIP_HTTPD_SUPPORT_WEBSOCKET */
     hs->retries++;
     if (hs->retries == HTTPD_MAX_RETRIES) {
       LWIP_DEBUGF(HTTPD_DEBUG, ("http_poll: too many retries, close\n"));
@@ -2653,6 +2704,17 @@ http_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t err)
     http_close_conn(pcb, hs);
     return ERR_OK;
   }
+
+#if LWIP_HTTPD_SUPPORT_WEBSOCKET
+  if (hs->ws != NULL) {
+    /* upgraded connection: httpd_ws parses (and frees) the data */
+    altcp_recved(pcb, p->tot_len);
+    if (httpd_ws_recv(hs->ws, p) != ERR_OK) {
+      http_close_conn(pcb, hs);
+    }
+    return ERR_OK;
+  }
+#endif /* LWIP_HTTPD_SUPPORT_WEBSOCKET */
 
 #if LWIP_HTTPD_SUPPORT_POST && LWIP_HTTPD_POST_MANUAL_WND
   if (hs->no_auto_wnd) {
@@ -2786,6 +2848,9 @@ httpd_init(void)
   LWIP_MEMPOOL_INIT(HTTPD_SSI_STATE);
 #endif
 #endif
+#if LWIP_HTTPD_SUPPORT_WEBSOCKET
+  httpd_ws_init();
+#endif /* LWIP_HTTPD_SUPPORT_WEBSOCKET */
   LWIP_DEBUGF(HTTPD_DEBUG, ("httpd_init\n"));
 
   /* LWIP_ASSERT_CORE_LOCKED(); is checked by tcp_new() */
