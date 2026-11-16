@@ -75,7 +75,7 @@ default_netif_remove(void)
 }
 
 static void
-create_arp_response(ip4_addr_t *adr)
+create_arp_packet(ip4_addr_t *adr, u16_t opcode)
 {
   int k;
   struct eth_hdr *ethhdr;
@@ -95,7 +95,7 @@ create_arp_response(ip4_addr_t *adr)
   etharphdr->proto = htons(ETHTYPE_IP);
   etharphdr->hwlen = ETHARP_HWADDR_LEN;
   etharphdr->protolen = sizeof(ip4_addr_t);
-  etharphdr->opcode = htons(ARP_REPLY);
+  etharphdr->opcode = htons(opcode);
 
   SMEMCPY(&etharphdr->sipaddr, adr, sizeof(ip4_addr_t));
   SMEMCPY(&etharphdr->dipaddr, &test_ipaddr, sizeof(ip4_addr_t));
@@ -112,6 +112,12 @@ create_arp_response(ip4_addr_t *adr)
   }
 
   ethernet_input(p, &test_netif);
+}
+
+static void
+create_arp_response(ip4_addr_t *adr)
+{
+  create_arp_packet(adr, ARP_REPLY);
 }
 
 /* Setups/teardown functions */
@@ -261,13 +267,42 @@ START_TEST(test_etharp_table)
 }
 END_TEST
 
+/* An ARP request for our address is answered unless ETHARP_IGNORE_REQUESTS
+ * is set; the sender is added to the ARP table in both cases. */
+START_TEST(test_etharp_request_reply)
+{
+  ip4_addr_t sender;
+  ssize_t idx;
+  const ip4_addr_t *unused_ipaddr;
+  struct eth_addr *unused_ethaddr;
+  LWIP_UNUSED_ARG(_i);
+
+  IP4_ADDR(&sender, 192,168,0,2);
+  linkoutput_ctr = 0;
+
+  create_arp_packet(&sender, ARP_REQUEST);
+#if ETHARP_IGNORE_REQUESTS
+  fail_unless(linkoutput_ctr == 0);
+#else /* ETHARP_IGNORE_REQUESTS */
+  fail_unless(linkoutput_ctr == 1);
+#endif /* ETHARP_IGNORE_REQUESTS */
+
+  idx = etharp_find_addr(&test_netif, &sender, &unused_ethaddr, &unused_ipaddr);
+  fail_unless(idx >= 0);
+  if (idx >= 0) {
+    fail_unless(eth_addr_eq(unused_ethaddr, &test_ethaddr2));
+  }
+}
+END_TEST
+
 
 /** Create the suite including all tests for this module */
 Suite *
 etharp_suite(void)
 {
   testfunc tests[] = {
-    TESTFUNC(test_etharp_table)
+    TESTFUNC(test_etharp_table),
+    TESTFUNC(test_etharp_request_reply)
   };
   return create_suite("ETHARP", tests, sizeof(tests)/sizeof(testfunc), etharp_setup, etharp_teardown);
 }

@@ -713,12 +713,17 @@ etharp_input(struct pbuf *p, struct netif *netif)
       LWIP_DEBUGF (ETHARP_DEBUG | LWIP_DBG_TRACE, ("etharp_input: incoming ARP request\n"));
       /* ARP request for our address? */
       if (for_us && !from_us) {
+#if ETHARP_IGNORE_REQUESTS
+        /* the reply is sent by someone else (e.g. the hardware) or not at all */
+        LWIP_DEBUGF(ETHARP_DEBUG | LWIP_DBG_TRACE, ("etharp_input: ARP request for us, reply suppressed (ETHARP_IGNORE_REQUESTS)\n"));
+#else /* ETHARP_IGNORE_REQUESTS */
         /* send ARP response */
         etharp_raw(netif,
                    (struct eth_addr *)netif->hwaddr, &hdr->shwaddr,
                    (struct eth_addr *)netif->hwaddr, netif_ip4_addr(netif),
                    &hdr->shwaddr, &sipaddr,
                    ARP_REPLY);
+#endif /* ETHARP_IGNORE_REQUESTS */
         /* we are not configured? */
       } else if (ip4_addr_isany_val(*netif_ip4_addr(netif))) {
         /* { for_us == 0 and netif->ip_addr.addr == 0 } */

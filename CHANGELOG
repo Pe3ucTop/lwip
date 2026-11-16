@@ -6,6 +6,16 @@ HISTORY
 
   * [Enter new changes just after this line - do not remove this line]
 
+  ++ New features:
+
+  2026-11-12: Maksims Matjakubovs
+  * etharp: add ETHARP_IGNORE_REQUESTS to suppress replies to ARP requests for
+    our address (e.g. when the Ethernet controller answers ARP itself)
+
+  2026-11-12: Maksims Matjakubovs
+  * icmp: add LWIP_IGNORE_PING to not answer IPv4 ICMP echo requests and remove
+    the echo reply code (e.g. when the Ethernet controller answers ping itself)
+
   ++ Bugfixes:
 
   2025-06-03: Simon Goldschmidt
