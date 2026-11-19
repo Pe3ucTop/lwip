@@ -115,4 +115,18 @@
 #define IPV6_FRAG_COPYHEADER            1
 #endif
 
+/* httpd OPTIONS / CORS tests (test/unit/httpd); OPTIONS and CORS can be
+   overridden on the compiler command line to test them off */
+#ifndef LWIP_HTTPD_SUPPORT_OPTIONS
+#define LWIP_HTTPD_SUPPORT_OPTIONS      1
+#endif
+#ifndef LWIP_HTTPD_CORS
+#define LWIP_HTTPD_CORS                 1
+#endif
+#define LWIP_HTTPD_DYNAMIC_HEADERS      1
+#define LWIP_HTTPD_CUSTOM_FILES         1
+#define LWIP_HTTPD_SUPPORT_POST         1
+#define LWIP_HTTPD_SUPPORT_11_KEEPALIVE 1
+#define LWIP_HTTPD_SUPPORT_EXTSTATUS    1
+
 #endif /* LWIP_HDR_LWIPOPTS_H */
