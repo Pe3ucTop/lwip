@@ -133,6 +133,7 @@ typedef struct http_rest_route {
 /* Setup */
 void  http_rest_init(void);
 err_t http_rest_register_routes(const http_rest_route_t *routes, size_t count);
+const http_rest_route_t *http_rest_route_find(const char *uri);
 
 /* Request access */
 const char *http_rest_query_get(const http_rest_req_t *req, const char *key);

@@ -9,6 +9,11 @@ HISTORY
   ++ New features:
 
   2026-11-19: Maksims Matjakubovs
+  * httpd, contrib/addons/httpd_rest: with LWIP_HTTPD_CORS, status pages and REST
+    router responses carry "Access-Control-Allow-Origin" (never twice);
+    http_rest_route_find(); rest_example answers OPTIONS per route
+
+  2026-11-19: Maksims Matjakubovs
   * httpd: add LWIP_HTTPD_SUPPORT_OPTIONS to answer OPTIONS requests (e.g. CORS
     preflight) with "204 No Content" or an application hook
     (httpd_set_options_hook()), and LWIP_HTTPD_CORS to add the CORS headers

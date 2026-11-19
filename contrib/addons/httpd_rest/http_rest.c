@@ -79,10 +79,21 @@
 /* prefix + "99-65535" + NUL */
 #define HTTP_REST_VNAME_LEN   (HTTP_REST_PREFIX_LEN + 9)
 
+#if LWIP_HTTPD_CORS
+/** With LWIP_HTTPD_CORS the router's responses carry this header unless the
+ * handler added its own "Access-Control-Allow-Origin" (httpd does not add it
+ * to files with included headers) */
+#define HTTP_REST_CORS_HDR_NAME "Access-Control-Allow-Origin"
+#define HTTP_REST_CORS_HDR      HTTP_REST_CORS_HDR_NAME ": " LWIP_HTTPD_CORS_ALLOW_ORIGIN "\r\n"
+#else /* LWIP_HTTPD_CORS */
+#define HTTP_REST_CORS_HDR      ""
+#endif /* LWIP_HTTPD_CORS */
+
 static const char http_rest_busy_response[] =
   "HTTP/1.1 503 Service Unavailable\r\n"
   "Content-Type: text/plain\r\n"
   "Content-Length: 5\r\n"
+  HTTP_REST_CORS_HDR
   "Retry-After: 1\r\n"
   "Connection: close\r\n"
   "\r\n"
@@ -590,6 +601,30 @@ http_rest_resp_append_num(http_rest_session_t *s, size_t num, unsigned base)
   return http_rest_resp_append(s, &buf[pos], sizeof(buf) - pos);
 }
 
+#if LWIP_HTTPD_CORS
+/** Check whether the handler added a header (name compared case-insensitively) */
+static u8_t
+http_rest_has_extra_hdr(const http_rest_session_t *s, const char *name)
+{
+  size_t name_len = strlen(name);
+  size_t pos = 0;
+
+  /* extra_hdr holds complete "Name: value\r\n" lines */
+  while (pos + name_len < s->extra_hdr_len) {
+    const char *line = &s->extra_hdr[pos];
+    const char *end = lwip_strnstr(line, "\r\n", s->extra_hdr_len - pos);
+    if ((line[name_len] == ':') && (lwip_strnicmp(line, name, name_len) == 0)) {
+      return 1;
+    }
+    if (end == NULL) {
+      break;
+    }
+    pos = (size_t)(end + 2 - s->extra_hdr);
+  }
+  return 0;
+}
+#endif /* LWIP_HTTPD_CORS */
+
 /**
  * Start a new response: status line, Content-Type, custom headers.
  * Discards anything produced before for this request.
@@ -621,6 +656,11 @@ http_rest_resp_start(http_rest_session_t *s, u16_t status, const char *reason,
   http_rest_resp_append_str(s, "\r\nContent-Type: ");
   http_rest_resp_append_str(s, content_type);
   http_rest_resp_append_str(s, "\r\nConnection: close\r\n");
+#if LWIP_HTTPD_CORS
+  if (!http_rest_has_extra_hdr(s, HTTP_REST_CORS_HDR_NAME)) {
+    http_rest_resp_append_str(s, HTTP_REST_CORS_HDR);
+  }
+#endif /* LWIP_HTTPD_CORS */
   http_rest_resp_append(s, s->extra_hdr, s->extra_hdr_len);
   return s->resp_overflow ? ERR_BUF : ERR_OK;
 }
@@ -823,6 +863,23 @@ static u8_t
 http_rest_is_internal(const char *uri)
 {
   return (strncmp(uri, HTTP_REST_VIRTUAL_PREFIX, HTTP_REST_PREFIX_LEN) == 0) ? 1 : 0;
+}
+
+/**
+ * Find the route for a request URI (the query string is ignored), e.g. to
+ * answer an OPTIONS request per route (see httpd_set_options_hook()).
+ *
+ * @param uri request URI
+ * @return the first matching route table entry, or NULL if no route matches
+ *         (or the URI is in the router's internal namespace)
+ */
+const http_rest_route_t *
+http_rest_route_find(const char *uri)
+{
+  if ((uri == NULL) || http_rest_is_internal(uri)) {
+    return NULL;
+  }
+  return http_rest_route_match(uri, http_rest_path_len(uri));
 }
 
 #if LWIP_HTTPD_HEADERS_BEFORE_FILE_OPEN
