@@ -8,6 +8,13 @@ HISTORY
 
   ++ New features:
 
+  2026-11-19: Maksims Matjakubovs
+  * httpd: add LWIP_HTTPD_SUPPORT_OPTIONS to answer OPTIONS requests (e.g. CORS
+    preflight) with "204 No Content" or an application hook
+    (httpd_set_options_hook()), and LWIP_HTTPD_CORS to add the CORS headers
+    (LWIP_HTTPD_CORS_ALLOW_ORIGIN/_METHODS/_HEADERS/_MAX_AGE) to that answer and
+    "Access-Control-Allow-Origin" to the headers httpd generates
+
   2026-11-12: Maksims Matjakubovs
   * etharp: add ETHARP_IGNORE_REQUESTS to suppress replies to ARP requests for
     our address (e.g. when the Ethernet controller answers ARP itself)

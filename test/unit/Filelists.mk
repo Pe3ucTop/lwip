@@ -47,6 +47,7 @@ TESTFILES=$(TESTDIR)/lwip_unittests.c \
 	$(TESTDIR)/lowpan6/test_lowpan6.c \
 	$(TESTDIR)/mdns/test_mdns.c \
 	$(TESTDIR)/httpd/test_httpd_post.c \
+	$(TESTDIR)/httpd/test_httpd_cors.c \
 	$(TESTDIR)/mqtt/test_mqtt.c \
 	$(TESTDIR)/tcp/tcp_helper.c \
 	$(TESTDIR)/tcp/test_tcp_oos.c \

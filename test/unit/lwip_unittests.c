@@ -16,6 +16,7 @@
 #include "dhcp/test_dhcp.h"
 #include "mdns/test_mdns.h"
 #include "httpd/test_httpd_post.h"
+#include "httpd/test_httpd_cors.h"
 #include "mqtt/test_mqtt.h"
 #include "httpd/test_httpd_ws.h"
 #include "api/test_sockets.h"
@@ -101,6 +102,7 @@ int main(void)
     dhcp_suite,
     mdns_suite,
     httpd_post_suite,
+    httpd_cors_suite,
     mqtt_suite,
     httpd_ws_suite,
     sockets_suite

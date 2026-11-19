@@ -62,6 +62,22 @@
  * File system images without headers can be created using the makefsfile
  * tool with the -h command line option.
  *
+ * Notes on OPTIONS and CORS
+ * -------------------------
+ *
+ * Browsers send an OPTIONS "preflight" request before cross-origin requests
+ * with non-simple headers (e.g. "Authorization" or
+ * "Content-Type: application/json"). Define LWIP_HTTPD_SUPPORT_OPTIONS to
+ * accept OPTIONS and LWIP_HTTPD_CORS to answer it with the CORS headers
+ * configured by LWIP_HTTPD_CORS_ALLOW_ORIGIN, LWIP_HTTPD_CORS_ALLOW_METHODS,
+ * LWIP_HTTPD_CORS_ALLOW_HEADERS and LWIP_HTTPD_CORS_MAX_AGE. With
+ * LWIP_HTTPD_CORS and LWIP_HTTPD_DYNAMIC_HEADERS, the headers httpd generates
+ * for a response also carry "Access-Control-Allow-Origin". Files that include
+ * their own headers are sent unchanged and must carry the header themselves.
+ * An application that needs a different answer per URI or origin (e.g. echo
+ * an allowed "Origin" together with "Access-Control-Allow-Credentials")
+ * registers a hook with httpd_set_options_hook().
+ *
  *
  * Notes about valid SSI tags
  * --------------------------
@@ -142,6 +158,43 @@
 #ifndef HTTP_IS_HDR_VOLATILE
 #define HTTP_IS_HDR_VOLATILE(hs, ptr)   0
 #endif
+#if LWIP_HTTPD_SUPPORT_OPTIONS
+/** The answer written by an OPTIONS hook is freed when the request is done,
+ * possibly before it is acknowledged, so it must be copied */
+#define HTTP_IS_OPTIONS_RSP_VOLATILE(hs) (((hs)->options_buf != NULL) ? TCP_WRITE_FLAG_COPY : 0)
+#else /* LWIP_HTTPD_SUPPORT_OPTIONS */
+#define HTTP_IS_OPTIONS_RSP_VOLATILE(hs) 0
+#endif /* LWIP_HTTPD_SUPPORT_OPTIONS */
+
+#if LWIP_HTTPD_CORS
+#define HTTPD_CORS_STR2(x) #x
+#define HTTPD_CORS_STR(x)  HTTPD_CORS_STR2(x)
+/** Header added to the responses httpd generates (dynamic headers) */
+#define HTTPD_CORS_HDR_ALLOW_ORIGIN "Access-Control-Allow-Origin: " LWIP_HTTPD_CORS_ALLOW_ORIGIN CRLF
+/** Headers of the built-in answer to a preflight (OPTIONS) request */
+#define HTTPD_CORS_HDRS_PREFLIGHT HTTPD_CORS_HDR_ALLOW_ORIGIN \
+  "Access-Control-Allow-Methods: " LWIP_HTTPD_CORS_ALLOW_METHODS CRLF \
+  "Access-Control-Allow-Headers: " LWIP_HTTPD_CORS_ALLOW_HEADERS CRLF \
+  "Access-Control-Max-Age: " HTTPD_CORS_STR(LWIP_HTTPD_CORS_MAX_AGE) CRLF
+#else /* LWIP_HTTPD_CORS */
+#define HTTPD_CORS_HDRS_PREFLIGHT ""
+#endif /* LWIP_HTTPD_CORS */
+
+#if LWIP_HTTPD_SUPPORT_OPTIONS
+/** Built-in answer to an OPTIONS request */
+#define HTTPD_OPTIONS_RSP(connection) \
+  "HTTP/1.0 204 No Content" CRLF \
+  "Server: " HTTPD_SERVER_AGENT CRLF \
+  "Allow: " LWIP_HTTPD_CORS_ALLOW_METHODS CRLF \
+  HTTPD_CORS_HDRS_PREFLIGHT \
+  "Content-Length: 0" CRLF \
+  "Connection: " connection CRLF CRLF
+static const char http_options_rsp_close[] = HTTPD_OPTIONS_RSP("close");
+#if LWIP_HTTPD_SUPPORT_11_KEEPALIVE
+static const char http_options_rsp_keepalive[] = HTTPD_OPTIONS_RSP("keep-alive");
+#endif /* LWIP_HTTPD_SUPPORT_11_KEEPALIVE */
+static httpd_options_hook_fn httpd_options_hook;
+#endif /* LWIP_HTTPD_SUPPORT_OPTIONS */
 
 /* Return values for http_send_*() */
 #define HTTP_DATA_TO_SEND_FREED    3
@@ -187,12 +240,18 @@ static char http_uri_buf[LWIP_HTTPD_URI_BUF_LEN + 1];
 /* The number of individual strings that comprise the headers sent before each
  * requested file.
  */
-#define NUM_FILE_HDR_STRINGS 5
 #define HDR_STRINGS_IDX_HTTP_STATUS           0 /* e.g. "HTTP/1.0 200 OK\r\n" */
 #define HDR_STRINGS_IDX_SERVER_NAME           1 /* e.g. "Server: "HTTPD_SERVER_AGENT"\r\n" */
 #define HDR_STRINGS_IDX_CONTENT_LEN_KEEPALIVE 2 /* e.g. "Content-Length: xy\r\n" and/or "Connection: keep-alive\r\n" */
 #define HDR_STRINGS_IDX_CONTENT_LEN_NR        3 /* the byte count, when content-length is used */
+#if LWIP_HTTPD_CORS
+#define NUM_FILE_HDR_STRINGS 6
+#define HDR_STRINGS_IDX_CORS                  4 /* "Access-Control-Allow-Origin: ...\r\n" */
+#define HDR_STRINGS_IDX_CONTENT_TYPE          5 /* the content type (or default answer content type including default document) */
+#else /* LWIP_HTTPD_CORS */
+#define NUM_FILE_HDR_STRINGS 5
 #define HDR_STRINGS_IDX_CONTENT_TYPE          4 /* the content type (or default answer content type including default document) */
+#endif /* LWIP_HTTPD_CORS */
 
 /* The dynamically generated Content-Length buffer needs space for CRLF + NULL */
 #define LWIP_HTTPD_MAX_CONTENT_LEN_OFFSET 3
@@ -258,6 +317,10 @@ struct http_state {
   char *buf;        /* File read buffer. */
   int buf_len;      /* Size of file read buffer, buf. */
 #endif /* LWIP_HTTPD_DYNAMIC_FILE_READ */
+#if LWIP_HTTPD_SUPPORT_OPTIONS
+  char *options_buf; /* Answer written by the OPTIONS hook (heap). */
+  u8_t options_rsp;  /* handle is the in-memory OPTIONS answer, not opened by fs_open */
+#endif /* LWIP_HTTPD_SUPPORT_OPTIONS */
   u32_t left;       /* Number of unsent bytes in buf. */
   u8_t retries;
 #if LWIP_HTTPD_SUPPORT_11_KEEPALIVE
@@ -521,9 +584,23 @@ http_state_eof(struct http_state *hs)
     LWIP_DEBUGF(HTTPD_DEBUG_TIMING, ("httpd: needed %"U32_F" ms to send file of %d bytes -> %"U32_F" bytes/sec\n",
                                      ms_needed, hs->handle->len, ((((u32_t)hs->handle->len) * 10) / needed)));
 #endif /* LWIP_HTTPD_TIMING */
-    fs_close(hs->handle);
+#if LWIP_HTTPD_SUPPORT_OPTIONS
+    if (hs->options_rsp) {
+      /* in-memory OPTIONS answer: nothing to close */
+      hs->options_rsp = 0;
+    } else
+#endif /* LWIP_HTTPD_SUPPORT_OPTIONS */
+    {
+      fs_close(hs->handle);
+    }
     hs->handle = NULL;
   }
+#if LWIP_HTTPD_SUPPORT_OPTIONS
+  if (hs->options_buf != NULL) {
+    mem_free(hs->options_buf);
+    hs->options_buf = NULL;
+  }
+#endif /* LWIP_HTTPD_SUPPORT_OPTIONS */
 #if LWIP_HTTPD_DYNAMIC_FILE_READ
   if (hs->buf != NULL) {
     mem_free(hs->buf);
@@ -943,6 +1020,9 @@ get_http_headers(struct http_state *hs, const char *uri)
   hs->hdrs[HDR_STRINGS_IDX_SERVER_NAME] = g_psHTTPHeaderStrings[HTTP_HDR_SERVER];
   hs->hdrs[HDR_STRINGS_IDX_CONTENT_LEN_KEEPALIVE] = NULL;
   hs->hdrs[HDR_STRINGS_IDX_CONTENT_LEN_NR] = NULL;
+#if LWIP_HTTPD_CORS
+  hs->hdrs[HDR_STRINGS_IDX_CORS] = HTTPD_CORS_HDR_ALLOW_ORIGIN;
+#endif /* LWIP_HTTPD_CORS */
 
   /* Is this a normal file or the special case we use to send back the
      default "404: Page not found" response? */
@@ -1291,7 +1371,7 @@ http_send_data_nonssi(struct altcp_pcb *pcb, struct http_state *hs)
    * Just send the data as we received it from the file. */
   len = (u16_t)LWIP_MIN(hs->left, 0xffff);
 
-  err = http_write(pcb, hs->file, &len, HTTP_IS_DATA_VOLATILE(hs));
+  err = http_write(pcb, hs->file, &len, (u8_t)(HTTP_IS_DATA_VOLATILE(hs) | HTTP_IS_OPTIONS_RSP_VOLATILE(hs)));
   if (err == ERR_OK) {
     data_to_send = 1;
     hs->file += len;
@@ -2060,6 +2140,95 @@ http_continue(void *connection)
 }
 #endif /* LWIP_HTTPD_FS_ASYNC_READ */
 
+#if LWIP_HTTPD_SUPPORT_OPTIONS
+/**
+ * @ingroup httpd
+ * Register a hook that answers OPTIONS requests (e.g. CORS preflight
+ * requests) instead of the built-in answer (see @ref httpd_options_hook_fn
+ * and @ref LWIP_HTTPD_SUPPORT_OPTIONS).
+ *
+ * @param hook the hook, NULL to use the built-in answer only
+ */
+void
+httpd_set_options_hook(httpd_options_hook_fn hook)
+{
+  httpd_options_hook = hook;
+}
+
+/** Sub-function of http_parse_request(): answer an OPTIONS request.
+ * The answer (response head only) is sent like a file with included headers
+ * from memory; no file is opened and no POST callback is called.
+ *
+ * @param hs the connection state
+ * @param uri the request URI (zero-terminated)
+ * @param headers the request headers after the request line
+ * @param headers_len length of headers
+ * @return ERR_OK if hs has been initialized to send the answer,
+ *         ERR_ARG if the connection should be closed
+ */
+static err_t
+http_options_request(struct http_state *hs, const char *uri, const char *headers, u16_t headers_len)
+{
+  struct fs_file *file = &hs->file_handle;
+  const char *rsp = NULL;
+  u16_t rsp_len = 0;
+  u8_t flags = FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_HEADER_PERSISTENT;
+
+#if LWIP_HTTPD_SUPPORT_11_KEEPALIVE
+  if (hs->keepalive) {
+    /* An OPTIONS body is not read: close the connection after the answer
+       so that a body is never parsed as the next request. */
+    const char *content_len = lwip_strnistr(headers, "Content-Length:", headers_len);
+    if (((content_len != NULL) && (atoi(content_len + 15) != 0)) ||
+        (lwip_strnistr(headers, "Transfer-Encoding:", headers_len) != NULL)) {
+      hs->keepalive = 0;
+    }
+  }
+#endif /* LWIP_HTTPD_SUPPORT_11_KEEPALIVE */
+
+  if (httpd_options_hook != NULL) {
+    char *buf = (char *)mem_malloc(LWIP_HTTPD_OPTIONS_RSP_LEN);
+    if (buf == NULL) {
+      LWIP_DEBUGF(HTTPD_DEBUG, ("OPTIONS: out of memory\n"));
+      return ERR_ARG;
+    }
+    rsp_len = httpd_options_hook(uri, headers, headers_len, buf, LWIP_HTTPD_OPTIONS_RSP_LEN);
+    LWIP_ASSERT("OPTIONS hook answer too long", rsp_len <= LWIP_HTTPD_OPTIONS_RSP_LEN);
+    if ((rsp_len > 0) && (rsp_len <= LWIP_HTTPD_OPTIONS_RSP_LEN)) {
+      hs->options_buf = buf;
+      rsp = buf;
+      if (lwip_strnistr(buf, "Content-Length:", rsp_len) == NULL) {
+        /* the client cannot tell where the answer ends: close afterwards */
+        flags = FS_FILE_FLAGS_HEADER_INCLUDED;
+      }
+    } else {
+      mem_free(buf);
+      rsp_len = 0;
+    }
+  }
+  if (rsp_len == 0) {
+#if LWIP_HTTPD_SUPPORT_11_KEEPALIVE
+    if (hs->keepalive) {
+      rsp = http_options_rsp_keepalive;
+      rsp_len = (u16_t)(sizeof(http_options_rsp_keepalive) - 1);
+    } else
+#endif /* LWIP_HTTPD_SUPPORT_11_KEEPALIVE */
+    {
+      rsp = http_options_rsp_close;
+      rsp_len = (u16_t)(sizeof(http_options_rsp_close) - 1);
+    }
+  }
+
+  memset(file, 0, sizeof(struct fs_file));
+  file->data = rsp;
+  file->len = rsp_len;
+  file->index = rsp_len;
+  file->flags = flags;
+  hs->options_rsp = 1;
+  return http_init_file(hs, file, 0, uri, 0, NULL);
+}
+#endif /* LWIP_HTTPD_SUPPORT_OPTIONS */
+
 /**
  * When data has been received in the correct state, try to parse it
  * as a HTTP request.
@@ -2134,6 +2303,9 @@ http_parse_request(struct pbuf *inp, struct http_state *hs, struct altcp_pcb *pc
 #if LWIP_HTTPD_SUPPORT_POST
       int is_post = 0;
 #endif /* LWIP_HTTPD_SUPPORT_POST */
+#if LWIP_HTTPD_SUPPORT_OPTIONS
+      int is_options = 0;
+#endif /* LWIP_HTTPD_SUPPORT_OPTIONS */
       int is_09 = 0;
       char *sp1, *sp2;
       u16_t left_len, uri_len;
@@ -2151,6 +2323,12 @@ http_parse_request(struct pbuf *inp, struct http_state *hs, struct altcp_pcb *pc
         /* received GET request */
         LWIP_DEBUGF(HTTPD_DEBUG | LWIP_DBG_TRACE, ("Received POST request\n"));
 #endif /* LWIP_HTTPD_SUPPORT_POST */
+#if LWIP_HTTPD_SUPPORT_OPTIONS
+      } else if (!strncmp(data, "OPTIONS ", 8)) {
+        is_options = 1;
+        sp1 = data + 7;
+        LWIP_DEBUGF(HTTPD_DEBUG | LWIP_DBG_TRACE, ("Received OPTIONS request\n"));
+#endif /* LWIP_HTTPD_SUPPORT_OPTIONS */
       } else {
         /* null-terminate the METHOD (pbuf is freed anyway wen returning) */
         data[4] = 0;
@@ -2197,6 +2375,15 @@ http_parse_request(struct pbuf *inp, struct http_state *hs, struct altcp_pcb *pc
           uri[uri_len] = 0;
           LWIP_DEBUGF(HTTPD_DEBUG, ("Received \"%s\" request for URI: \"%s\"\n",
                                     data, uri));
+#if LWIP_HTTPD_SUPPORT_OPTIONS
+          if (is_options) {
+            if (is_09) {
+              /* HTTP/0.9 does not support OPTIONS */
+              return http_find_error_file(hs, 400);
+            }
+            return http_options_request(hs, uri, crlf + 2, (u16_t)(data_len - (crlf + 2 - data)));
+          }
+#endif /* LWIP_HTTPD_SUPPORT_OPTIONS */
 #if LWIP_HTTPD_SUPPORT_POST
           if (is_post) {
 #if LWIP_HTTPD_SUPPORT_REQUESTLIST
