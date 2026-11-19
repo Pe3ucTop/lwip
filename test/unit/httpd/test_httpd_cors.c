@@ -2,6 +2,9 @@
 
 #include "lwip/apps/httpd.h"
 #include "lwip/apps/fs.h"
+#if LWIP_HTTPD_POST_DISPATCH
+#include "lwip/apps/httpd_post_dispatch.h"
+#endif /* LWIP_HTTPD_POST_DISPATCH */
 #include "lwip/priv/tcp_priv.h"
 #include "lwip/tcp.h"
 #include "lwip/stats.h"
@@ -84,8 +87,8 @@ cors_set_file(struct fs_file *file, const char *data, int len, u8_t flags)
   return 1;
 }
 
-int
-fs_open_custom(struct fs_file *file, const char *name)
+static int
+cors_fs_open(struct fs_file *file, const char *name)
 {
   ev.opens++;
   if (!strcmp(name, "/cors.txt")) {
@@ -103,19 +106,30 @@ fs_open_custom(struct fs_file *file, const char *name)
   return 0;
 }
 
+#if LWIP_HTTPD_CUSTOM_FILE_PROVIDERS
+/* several modules provide custom files: register as a provider */
+static struct fs_custom_provider cors_provider;
+#else /* LWIP_HTTPD_CUSTOM_FILE_PROVIDERS */
+int
+fs_open_custom(struct fs_file *file, const char *name)
+{
+  return cors_fs_open(file, name);
+}
+
 void
 fs_close_custom(struct fs_file *file)
 {
   LWIP_UNUSED_ARG(file);
 }
+#endif /* LWIP_HTTPD_CUSTOM_FILE_PROVIDERS */
 
 /*---------------------------------------------------------------------------*/
 /* application side: POST */
 
-err_t
-httpd_post_begin(void *connection, const char *uri, const char *http_request,
-                 u16_t http_request_len, int content_len, char *response_uri,
-                 u16_t response_uri_len, u8_t *post_auto_wnd)
+static err_t
+cors_post_begin(void *connection, const char *uri, const char *http_request,
+                u16_t http_request_len, int content_len, char *response_uri,
+                u16_t response_uri_len, u8_t *post_auto_wnd)
 {
   LWIP_UNUSED_ARG(connection);
   LWIP_UNUSED_ARG(uri);
@@ -129,20 +143,56 @@ httpd_post_begin(void *connection, const char *uri, const char *http_request,
   return ERR_OK;
 }
 
-err_t
-httpd_post_receive_data(void *connection, struct pbuf *p)
+static err_t
+cors_post_receive(void *connection, struct pbuf *p)
 {
   LWIP_UNUSED_ARG(connection);
   pbuf_free(p);
   return ERR_OK;
 }
 
-void
-httpd_post_finished(void *connection, char *response_uri, u16_t response_uri_len)
+static void
+cors_post_finished(void *connection, char *response_uri, u16_t response_uri_len)
 {
   LWIP_UNUSED_ARG(connection);
   strncpy(response_uri, "/posted.html", response_uri_len);
 }
+
+#if LWIP_HTTPD_POST_DISPATCH
+/* several modules handle POST: register a sink for "/form" */
+static u8_t
+cors_post_match(const char *uri, const char *http_request, u16_t http_request_len)
+{
+  LWIP_UNUSED_ARG(http_request);
+  LWIP_UNUSED_ARG(http_request_len);
+  return (u8_t)!strcmp(uri, "/form");
+}
+
+static const struct httpd_post_sink cors_sink = {
+  "cors", cors_post_match, cors_post_begin, cors_post_receive, cors_post_finished
+};
+#else /* LWIP_HTTPD_POST_DISPATCH */
+err_t
+httpd_post_begin(void *connection, const char *uri, const char *http_request,
+                 u16_t http_request_len, int content_len, char *response_uri,
+                 u16_t response_uri_len, u8_t *post_auto_wnd)
+{
+  return cors_post_begin(connection, uri, http_request, http_request_len, content_len,
+                         response_uri, response_uri_len, post_auto_wnd);
+}
+
+err_t
+httpd_post_receive_data(void *connection, struct pbuf *p)
+{
+  return cors_post_receive(connection, p);
+}
+
+void
+httpd_post_finished(void *connection, char *response_uri, u16_t response_uri_len)
+{
+  cors_post_finished(connection, response_uri, response_uri_len);
+}
+#endif /* LWIP_HTTPD_POST_DISPATCH */
 
 /*---------------------------------------------------------------------------*/
 /* application side: OPTIONS hook */
@@ -381,6 +431,15 @@ httpd_cors_setup(void)
 #if LWIP_HTTPD_SUPPORT_OPTIONS
   httpd_set_options_hook(NULL);
 #endif /* LWIP_HTTPD_SUPPORT_OPTIONS */
+#if LWIP_HTTPD_CUSTOM_FILE_PROVIDERS
+  if (cors_provider.open == NULL) {
+    cors_provider.open = cors_fs_open;
+    fail_unless(fs_custom_provider_register(&cors_provider, FS_CUSTOM_PROVIDER_BEFORE_FSDATA) == ERR_OK);
+  }
+#endif /* LWIP_HTTPD_CUSTOM_FILE_PROVIDERS */
+#if LWIP_HTTPD_POST_DISPATCH
+  fail_unless(httpd_post_sink_register(&cors_sink) == ERR_OK);
+#endif /* LWIP_HTTPD_POST_DISPATCH */
 }
 
 static void
