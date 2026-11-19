@@ -16,6 +16,7 @@
 #include "dhcp/test_dhcp.h"
 #include "mdns/test_mdns.h"
 #include "httpd/test_httpd_post.h"
+#include "httpd/test_httpd_cors.h"
 #include "mqtt/test_mqtt.h"
 #include "api/test_sockets.h"
 #include "ppp/test_pppos.h"
@@ -100,6 +101,7 @@ int main(void)
     dhcp_suite,
     mdns_suite,
     httpd_post_suite,
+    httpd_cors_suite,
     mqtt_suite,
     sockets_suite
 #if PPP_SUPPORT && PPPOS_SUPPORT
