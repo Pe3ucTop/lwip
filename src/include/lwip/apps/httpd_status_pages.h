@@ -47,6 +47,15 @@ extern "C" {
 
 #if LWIP_HTTPD_STATUS_PAGES
 
+/** Header line added to the status pages: with LWIP_HTTPD_CORS, the pages
+ * carry "Access-Control-Allow-Origin" like the headers httpd generates
+ * itself (they include their own headers, so httpd does not add it). */
+#if LWIP_HTTPD_CORS
+#define HTTPD_STATUS_PAGE_CORS_HDR "Access-Control-Allow-Origin: " LWIP_HTTPD_CORS_ALLOW_ORIGIN "\r\n"
+#else /* LWIP_HTTPD_CORS */
+#define HTTPD_STATUS_PAGE_CORS_HDR ""
+#endif /* LWIP_HTTPD_CORS */
+
 /** Complete response text (status line, headers, body) of a status page.
  * @param status status code and reason phrase, e.g. "413 Payload Too Large"
  * @param body HTML body (string literal)
@@ -54,6 +63,7 @@ extern "C" {
 #define HTTPD_STATUS_PAGE_TEXT(status, body) \
   "HTTP/1.0 " status "\r\n" \
   "Content-Type: text/html\r\n" \
+  HTTPD_STATUS_PAGE_CORS_HDR \
   "Connection: close\r\n" \
   "\r\n" body
 

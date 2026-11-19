@@ -62,9 +62,12 @@
 static struct httpd_status_page_table *httpd_status_page_tables;
 
 #if LWIP_HTTPD_STATUS_PAGES_DEFAULTS
+#define HTTPD_STATUS_PAGE_204 \
+  "HTTP/1.0 204 No Content\r\n" HTTPD_STATUS_PAGE_CORS_HDR "Connection: close\r\n\r\n"
+
 static const struct httpd_status_page httpd_status_pages_default[] = {
-  { "/204.html", "HTTP/1.0 204 No Content\r\nConnection: close\r\n\r\n",
-    (u16_t)(sizeof("HTTP/1.0 204 No Content\r\nConnection: close\r\n\r\n") - 1) },
+  { "/204.html", HTTPD_STATUS_PAGE_204,
+    (u16_t)(sizeof(HTTPD_STATUS_PAGE_204) - 1) },
   HTTPD_STATUS_PAGE("/400.html", "400 Bad Request",
                     "<html><body><h1>400 Bad Request</h1></body></html>"),
   HTTPD_STATUS_PAGE("/404.html", "404 Not Found",
