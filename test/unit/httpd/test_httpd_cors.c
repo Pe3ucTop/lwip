@@ -5,6 +5,9 @@
 #if LWIP_HTTPD_POST_DISPATCH
 #include "lwip/apps/httpd_post_dispatch.h"
 #endif /* LWIP_HTTPD_POST_DISPATCH */
+#if LWIP_HTTPD_EXAMPLE_REST
+#include "examples/httpd/rest_example/rest_example.h"
+#endif /* LWIP_HTTPD_EXAMPLE_REST */
 #include "lwip/priv/tcp_priv.h"
 #include "lwip/tcp.h"
 #include "lwip/stats.h"
@@ -734,6 +737,128 @@ START_TEST(test_httpd_cors_post)
 }
 END_TEST
 
+#if LWIP_HTTPD_EXAMPLE_REST
+/* REST example (contrib/examples/httpd/rest_example): OPTIONS per route,
+   origin echo with credentials, no duplicate CORS header */
+
+#if LWIP_HTTPD_SUPPORT_OPTIONS
+static void
+rest_options(const char *uri, const char *origin)
+{
+  char req[256];
+  snprintf(req, sizeof(req), "OPTIONS %s HTTP/1.1\r\nHost: test\r\n%s%s%s"
+           "Access-Control-Request-Method: POST\r\n\r\n", uri,
+           (origin != NULL) ? "Origin: " : "", (origin != NULL) ? origin : "",
+           (origin != NULL) ? "\r\n" : "");
+  cl_connect(&cl1);
+  cl_send(&cl1, req);
+  fail_unless(cl1.got_fin);
+}
+
+START_TEST(test_httpd_cors_rest_options)
+{
+  LWIP_UNUSED_ARG(_i);
+  rest_ex_init();
+
+  /* allowed origin: echoed with credentials, methods of the route */
+  rest_options("/api/status", "http://localhost:8080");
+  fail_unless(cl_status(&cl1, "HTTP/1.1 204 No Content\r\n"));
+  fail_unless(strstr(cl1.rx, "\r\nAllow: GET, OPTIONS\r\n") != NULL);
+  fail_unless(strstr(cl1.rx, "\r\nContent-Length: 0\r\n") != NULL);
+#if LWIP_HTTPD_CORS
+  fail_unless(cl_acao_count(&cl1) == 1);
+  fail_unless(strstr(cl1.rx, "\r\n" ACAO " http://localhost:8080\r\n") != NULL);
+  fail_unless(strstr(cl1.rx, "\r\nAccess-Control-Allow-Credentials: true\r\n") != NULL);
+  fail_unless(strstr(cl1.rx, "\r\nAccess-Control-Allow-Methods: GET, OPTIONS\r\n") != NULL);
+  fail_unless(strstr(cl1.rx, "\r\nAccess-Control-Allow-Headers: ") != NULL);
+#else /* LWIP_HTTPD_CORS */
+  fail_unless(strstr(cl1.rx, "Access-Control-") == NULL);
+#endif /* LWIP_HTTPD_CORS */
+
+  /* other origin, route with GET and POST, query ignored */
+  rest_options("/api/echo?x=1", "http://other.test");
+  fail_unless(cl_status(&cl1, "HTTP/1.1 204 No Content\r\n"));
+  fail_unless(strstr(cl1.rx, "\r\nAllow: GET, POST, OPTIONS\r\n") != NULL);
+  fail_unless(cl_acao_count(&cl1) == LWIP_HTTPD_CORS);
+  fail_unless(strstr(cl1.rx, "Credentials") == NULL);
+#if LWIP_HTTPD_CORS
+  fail_unless(strstr(cl1.rx, "\r\n" ACAO " " LWIP_HTTPD_CORS_ALLOW_ORIGIN "\r\n") != NULL);
+  fail_unless(strstr(cl1.rx, "\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\n") != NULL);
+#endif /* LWIP_HTTPD_CORS */
+
+  /* prefix route */
+  rest_options("/api/items/7", NULL);
+  fail_unless(cl_status(&cl1, "HTTP/1.1 204 No Content\r\n"));
+  fail_unless(strstr(cl1.rx, "\r\nAllow: GET, OPTIONS\r\n") != NULL);
+
+  /* unknown REST path */
+  rest_options("/api/nothing", "http://localhost:8080");
+  fail_unless(!strcmp(cl1.rx, "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"));
+
+  /* not a REST path: built-in answer */
+  rest_options("/index.html", "http://localhost:8080");
+  check_builtin_preflight(&cl1);
+  fail_unless(ev.opens == 0);
+}
+END_TEST
+#endif /* LWIP_HTTPD_SUPPORT_OPTIONS */
+
+/* REST responses: ACAO exactly once, echoed origin with credentials */
+START_TEST(test_httpd_cors_rest_responses)
+{
+  LWIP_UNUSED_ARG(_i);
+  rest_ex_init();
+
+  /* GET with an allowed origin */
+  cl_connect(&cl1);
+  cl_send(&cl1, "GET /api/status HTTP/1.1\r\nHost: test\r\nOrigin: http://localhost:8080\r\n\r\n");
+  fail_unless(cl_status(&cl1, "HTTP/1.1 200 OK\r\n"));
+  fail_unless(strstr(cl1.rx, "{\"uptime_ms\":") != NULL);
+  fail_unless(cl_acao_count(&cl1) == LWIP_HTTPD_CORS);
+#if LWIP_HTTPD_CORS
+  fail_unless(strstr(cl1.rx, "\r\n" ACAO " http://localhost:8080\r\n") != NULL);
+  fail_unless(strstr(cl1.rx, "\r\nAccess-Control-Allow-Credentials: true\r\n") != NULL);
+#endif /* LWIP_HTTPD_CORS */
+
+  /* GET without Origin: default header from the router */
+  cl_connect(&cl1);
+  cl_send(&cl1, "GET /api/status HTTP/1.1\r\nHost: test\r\n\r\n");
+  fail_unless(cl_status(&cl1, "HTTP/1.1 200 OK\r\n"));
+  fail_unless(cl_acao_count(&cl1) == LWIP_HTTPD_CORS);
+  fail_unless(strstr(cl1.rx, "Credentials") == NULL);
+#if LWIP_HTTPD_CORS
+  fail_unless(strstr(cl1.rx, "\r\n" ACAO " " LWIP_HTTPD_CORS_ALLOW_ORIGIN "\r\n") != NULL);
+#endif /* LWIP_HTTPD_CORS */
+
+  /* POST with an allowed origin (handler runs after the body) */
+  cl_connect(&cl1);
+  cl_send(&cl1, "POST /api/echo HTTP/1.1\r\nHost: test\r\nOrigin: http://127.0.0.1:8080\r\n"
+          "Content-Type: application/x-www-form-urlencoded\r\nContent-Length: 3\r\n\r\na=b");
+  fail_unless(cl_status(&cl1, "HTTP/1.1 200 OK\r\n"));
+  fail_unless(strstr(cl1.rx, "\"form\":{\"a\":\"b\"}") != NULL);
+  fail_unless(cl_acao_count(&cl1) == LWIP_HTTPD_CORS);
+#if LWIP_HTTPD_CORS
+  fail_unless(strstr(cl1.rx, "\r\n" ACAO " http://127.0.0.1:8080\r\n") != NULL);
+#endif /* LWIP_HTTPD_CORS */
+
+  /* 405 from the handler, other origin */
+  cl_connect(&cl1);
+  cl_send(&cl1, "POST /api/status HTTP/1.1\r\nHost: test\r\nOrigin: http://other.test\r\n"
+          "Content-Length: 0\r\n\r\n");
+  fail_unless(cl_status(&cl1, "HTTP/1.1 405 "));
+  fail_unless(strstr(cl1.rx, "\r\nAllow: GET\r\n") != NULL);
+  fail_unless(cl_acao_count(&cl1) == LWIP_HTTPD_CORS);
+  fail_unless(strstr(cl1.rx, "Credentials") == NULL);
+
+  /* 404 from the prefix route with an allowed origin */
+  cl_connect(&cl1);
+  cl_send(&cl1, "GET /api/items/ HTTP/1.1\r\nHost: test\r\nOrigin: http://localhost:8080\r\n\r\n");
+  fail_unless(cl_status(&cl1, "HTTP/1.1 404 "));
+  fail_unless(cl_acao_count(&cl1) == LWIP_HTTPD_CORS);
+}
+END_TEST
+#endif /* LWIP_HTTPD_EXAMPLE_REST */
+
 Suite *
 httpd_cors_suite(void)
 {
@@ -752,7 +877,13 @@ httpd_cors_suite(void)
     TESTFUNC(test_httpd_cors_get),
     TESTFUNC(test_httpd_cors_get_own_headers),
     TESTFUNC(test_httpd_cors_error_page),
-    TESTFUNC(test_httpd_cors_post)
+    TESTFUNC(test_httpd_cors_post),
+#if LWIP_HTTPD_EXAMPLE_REST
+#if LWIP_HTTPD_SUPPORT_OPTIONS
+    TESTFUNC(test_httpd_cors_rest_options),
+#endif /* LWIP_HTTPD_SUPPORT_OPTIONS */
+    TESTFUNC(test_httpd_cors_rest_responses),
+#endif /* LWIP_HTTPD_EXAMPLE_REST */
   };
   return create_suite("HTTPD_CORS", tests, sizeof(tests) / sizeof(testfunc), httpd_cors_setup, httpd_cors_teardown);
 }

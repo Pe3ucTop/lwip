@@ -135,5 +135,9 @@
 #define LWIP_HTTPD_DYNAMIC_HEADERS      1
 #define LWIP_HTTPD_SUPPORT_11_KEEPALIVE 1
 #define LWIP_HTTPD_SUPPORT_EXTSTATUS    1
+/* REST example with OPTIONS per route (test/unit/httpd/test_httpd_cors.c) */
+#define LWIP_HTTPD_EXAMPLE_REST              1
+#define LWIP_HTTPD_DYNAMIC_FILE_READ         1
+#define LWIP_HTTPD_HEADERS_BEFORE_FILE_OPEN  1
 
 #endif /* LWIP_HDR_LWIPOPTS_H */
