@@ -212,6 +212,86 @@
 #define LWIP_HTTPD_DYNAMIC_HEADERS 0
 #endif
 
+/** Set this to 1 to accept the OPTIONS method (e.g. CORS preflight requests
+ * sent by browsers before cross-origin requests with non-simple headers).
+ *
+ * With this off (default), OPTIONS is answered like any other unsupported
+ * method ("501 Not Implemented").
+ *
+ * With this on, an OPTIONS request is answered without opening a file and
+ * without calling the POST callbacks:
+ * - if a hook is registered with @ref httpd_set_options_hook, it can write
+ *   the complete response head (e.g. to echo the request "Origin" from an
+ *   allow-list or to reject unknown URIs);
+ * - otherwise (or if the hook returns 0) httpd answers "204 No Content"
+ *   with an "Allow: " @ref LWIP_HTTPD_CORS_ALLOW_METHODS header and, with
+ *   @ref LWIP_HTTPD_CORS, the CORS preflight headers.
+ *
+ * A request body sent with OPTIONS is ignored (the connection is closed after
+ * the answer if the request announced a body).
+ */
+#if !defined LWIP_HTTPD_SUPPORT_OPTIONS || defined __DOXYGEN__
+#define LWIP_HTTPD_SUPPORT_OPTIONS 0
+#endif
+
+/** Maximum length of the response head an OPTIONS hook can write (see
+ * @ref httpd_set_options_hook). The buffer is allocated from the heap
+ * while the answer is sent.
+ */
+#if !defined LWIP_HTTPD_OPTIONS_RSP_LEN || defined __DOXYGEN__
+#define LWIP_HTTPD_OPTIONS_RSP_LEN 384
+#endif
+
+/** Set this to 1 to enable built-in CORS (cross-origin resource sharing)
+ * answers:
+ * - the built-in OPTIONS answer (needs @ref LWIP_HTTPD_SUPPORT_OPTIONS)
+ *   carries "Access-Control-Allow-Origin", "Access-Control-Allow-Methods",
+ *   "Access-Control-Allow-Headers" and "Access-Control-Max-Age";
+ * - responses whose headers httpd generates itself (needs
+ *   @ref LWIP_HTTPD_DYNAMIC_HEADERS: files without included headers, error
+ *   pages without included headers, the default 404 page, the response URI
+ *   of a POST request) carry "Access-Control-Allow-Origin".
+ *
+ * httpd never adds the header to a file that carries its own HTTP headers
+ * (FS_FILE_FLAGS_HEADER_INCLUDED, e.g. files built by makefsdata without
+ * "-h" or custom files with prebuilt headers): such files must contain the
+ * header themselves if they need it, so it is never sent twice.
+ */
+#if !defined LWIP_HTTPD_CORS || defined __DOXYGEN__
+#define LWIP_HTTPD_CORS 0
+#endif
+
+/** Value of the "Access-Control-Allow-Origin" header added by
+ * @ref LWIP_HTTPD_CORS (a string literal). Note that browsers reject "*"
+ * for requests with credentials: use an OPTIONS hook to echo a specific origin
+ * in that case.
+ */
+#if !defined LWIP_HTTPD_CORS_ALLOW_ORIGIN || defined __DOXYGEN__
+#define LWIP_HTTPD_CORS_ALLOW_ORIGIN "*"
+#endif
+
+/** Value of the "Access-Control-Allow-Methods" header of the built-in OPTIONS
+ * answer (a string literal). Also used for its "Allow" header.
+ */
+#if !defined LWIP_HTTPD_CORS_ALLOW_METHODS || defined __DOXYGEN__
+#define LWIP_HTTPD_CORS_ALLOW_METHODS "GET, POST, OPTIONS"
+#endif
+
+/** Value of the "Access-Control-Allow-Headers" header of the built-in OPTIONS
+ * answer (a string literal).
+ */
+#if !defined LWIP_HTTPD_CORS_ALLOW_HEADERS || defined __DOXYGEN__
+#define LWIP_HTTPD_CORS_ALLOW_HEADERS "Authorization, Content-Type"
+#endif
+
+/** Value of the "Access-Control-Max-Age" header of the built-in OPTIONS
+ * answer in seconds (a plain decimal number, it is converted to a string by
+ * the preprocessor).
+ */
+#if !defined LWIP_HTTPD_CORS_MAX_AGE || defined __DOXYGEN__
+#define LWIP_HTTPD_CORS_MAX_AGE 86400
+#endif
+
 #if !defined HTTPD_DEBUG || defined __DOXYGEN__
 #define HTTPD_DEBUG         LWIP_DBG_OFF
 #endif

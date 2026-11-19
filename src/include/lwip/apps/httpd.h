@@ -309,6 +309,43 @@ extern void httpd_headers_after_file_open(struct fs_file *file, const char* head
                                           );
 #endif /* LWIP_HTTPD_HEADERS_AFTER_FILE_OPEN */
 
+#if LWIP_HTTPD_SUPPORT_OPTIONS
+/**
+ * @ingroup httpd
+ * Hook called for each OPTIONS request (e.g. a CORS preflight request),
+ * see @ref httpd_set_options_hook.
+ *
+ * The hook writes the complete response head into @p rsp: status line,
+ * header lines and the empty line ending the head (no body is sent).
+ * Example to echo an allowed origin:
+ * @code
+ * "HTTP/1.1 204 No Content\r\n"
+ * "Access-Control-Allow-Origin: https://app.example.com\r\n"
+ * "Access-Control-Allow-Credentials: true\r\n"
+ * "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+ * "Access-Control-Allow-Headers: Authorization, Content-Type\r\n"
+ * "Vary: Origin\r\n"
+ * "Content-Length: 0\r\n"
+ * "\r\n"
+ * @endcode
+ * The connection is kept open (persistent connection requested by the
+ * client) only if the head contains a "Content-Length:" header.
+ *
+ * @param uri The request URI (zero-terminated, including any query string).
+ * @param headers The request headers (after the request line, not
+ *                zero-terminated).
+ * @param headers_len Length of @p headers.
+ * @param rsp Buffer for the response head.
+ * @param rsp_max Size of @p rsp (@ref LWIP_HTTPD_OPTIONS_RSP_LEN).
+ * @return Number of bytes written to @p rsp, or 0 to send the built-in answer
+ *         (see @ref LWIP_HTTPD_SUPPORT_OPTIONS).
+ */
+typedef u16_t (*httpd_options_hook_fn)(const char *uri, const char *headers, u16_t headers_len,
+                                       char *rsp, u16_t rsp_max);
+
+void httpd_set_options_hook(httpd_options_hook_fn hook);
+#endif /* LWIP_HTTPD_SUPPORT_OPTIONS */
+
 void httpd_init(void);
 
 #if HTTPD_ENABLE_HTTPS
