@@ -622,6 +622,8 @@
  * responses (status line, headers and body) served from memory for exact
  * URIs such as "/404.html" or "/503.html", see httpd_status_pages_init().
  * They are asked after fsdata, so files in fsdata still take precedence.
+ * With @ref LWIP_HTTPD_CORS, the pages built with HTTPD_STATUS_PAGE() carry
+ * "Access-Control-Allow-Origin: " @ref LWIP_HTTPD_CORS_ALLOW_ORIGIN.
  * Requires LWIP_HTTPD_CUSTOM_FILES and LWIP_HTTPD_CUSTOM_FILE_PROVIDERS.
  */
 #if !defined LWIP_HTTPD_STATUS_PAGES || defined __DOXYGEN__

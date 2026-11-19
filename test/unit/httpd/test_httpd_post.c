@@ -587,6 +587,14 @@ START_TEST(test_fs_status_pages)
   fail_unless((f.flags & (FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_CUSTOM)) ==
               (FS_FILE_FLAGS_HEADER_INCLUDED | FS_FILE_FLAGS_CUSTOM));
   fail_unless(f.len == (int)strlen(f.data));
+  /* with LWIP_HTTPD_CORS, the page carries Access-Control-Allow-Origin once */
+  fail_unless((strstr(f.data, "\r\nAccess-Control-Allow-Origin: ") != NULL) == LWIP_HTTPD_CORS);
+  fail_unless(strstr(f.data, "\r\n\r\n") > strstr(f.data, "Connection: close"));
+  fs_close(&f);
+  fail_unless(fs_open(&f, "/204.html") == ERR_OK);
+  fail_unless(!strncmp(f.data, "HTTP/1.0 204 No Content\r\n", 25));
+  fail_unless((strstr(f.data, "\r\nAccess-Control-Allow-Origin: ") != NULL) == LWIP_HTTPD_CORS);
+  fail_unless(f.len == (int)strlen(f.data));
   fs_close(&f);
 
   /* fsdata has "/404.html": it wins over the default page */
